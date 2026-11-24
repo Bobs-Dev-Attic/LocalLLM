@@ -161,7 +161,7 @@ private fun parseMarkdownBlocks(markdown: String): List<MdBlock> {
 
 private val linkRegex = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")
 
-/** Inline formatting: `code`, **bold**/__bold__, *italic*/_italic_, and [links](url). */
+// Inline formatting: inline code, bold, italic, and links.
 private fun inlineMarkdown(text: String): AnnotatedString = buildAnnotatedString {
     var i = 0
     while (i < text.length) {
