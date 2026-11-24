@@ -236,7 +236,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         value = state.endpoint,
                         onValueChange = vm::updateEndpoint,
                         label = { Text("API base URL") },
-                        placeholder = { Text("http://192.168.1.10:1234/v1") },
+                        placeholder = { Text("http://192.168.11.225:1234/v1") },
                         singleLine = true,
                         enabled = !state.isConnecting,
                         modifier = Modifier.fillMaxWidth()

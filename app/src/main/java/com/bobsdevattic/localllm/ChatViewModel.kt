@@ -29,7 +29,7 @@ enum class FontSize(val label: String, val scale: Float) {
 }
 
 data class ChatUiState(
-    val endpoint: String = "http://192.168.1.10:1234/v1",
+    val endpoint: String = "http://192.168.11.225:1234/v1",
     val model: String = "",
     val models: List<ModelInfo> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
@@ -55,7 +55,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }.getOrNull() ?: "0.0.0"
     private val _state = MutableStateFlow(
         ChatUiState(
-            endpoint = preferences.getString("endpoint", "http://192.168.1.10:1234/v1")!!,
+            endpoint = preferences.getString("endpoint", "http://192.168.11.225:1234/v1")!!,
             model = preferences.getString("model", "")!!,
             themeMode = runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "SYSTEM") }
                 .getOrDefault(ThemeMode.SYSTEM),
