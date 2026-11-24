@@ -2,6 +2,7 @@ package com.bobsdevattic.localllm.data
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -43,6 +44,7 @@ class LmStudioClient {
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun streamChat(
         endpoint: String,
         model: String,
@@ -96,7 +98,8 @@ class LmStudioClient {
                             throw ApiException(error.optString("message", "The model server returned an error.").take(300))
                         }
                         val choice = json.optJSONArray("choices")?.optJSONObject(0)
-                        val delta = choice?.optJSONObject("delta")?.optString("content").orEmpty()
+                        val delta = choice?.optJSONObject("delta")?.optString("content")
+                            ?.takeUnless { it == "null" }.orEmpty()
                         if (delta.isNotEmpty()) trySend(ChatStreamEvent.Delta(delta))
                         finishReason = choice?.optString("finish_reason")
                             ?.takeUnless { it == "null" || it.isBlank() } ?: finishReason
@@ -161,9 +164,11 @@ internal fun isPrivateHttpHost(host: String): Boolean {
     if (host.equals("localhost", ignoreCase = true)) return true
     val ipv4Parts = host.split(".")
     val isIpv4Literal = ipv4Parts.size == 4 && ipv4Parts.all { part ->
-        part.isNotEmpty() && part.all(Char::isDigit) && part.toIntOrNull() in 0..255
+        part.isNotEmpty() && part.all(Char::isDigit) &&
+            (part.toIntOrNull()?.let { it in 0..255 } == true)
     }
-    val isIpv6Literal = host.contains(":") && host.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' || it == ':' }
+    val isIpv6Literal = host.contains(":") &&
+        host.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' || it == ':' }
     if (!isIpv4Literal && !isIpv6Literal) return false
     return runCatching {
         val address = InetAddress.getByName(host)
