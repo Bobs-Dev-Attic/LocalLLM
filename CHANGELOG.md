@@ -4,6 +4,12 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.16
+
+- The "More detail" response action is now an icon.
+- The thinking gradient now animates inside the "Message your model" input
+  field while generating, instead of across the whole chat background.
+
 ## 0.1.15
 
 - Smaller corner radius on the message composer field.

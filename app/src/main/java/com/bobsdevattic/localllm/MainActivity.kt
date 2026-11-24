@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.automirrored.filled.ReadMore
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
@@ -348,16 +349,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
             )
         }
     ) { padding ->
-        // Fade the processing background in when generating starts and out when it ends.
-        val backgroundVisibility by animateFloatAsState(
-            targetValue = if (state.isGenerating) 1f else 0f,
-            animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
-            label = "backgroundVisibility"
-        )
         Box(Modifier.fillMaxSize().padding(padding)) {
-            if (backgroundVisibility > 0.01f) {
-                AnimatedDiagonalGradient(Modifier.matchParentSize(), intensity = backgroundVisibility)
-            }
             Column(Modifier.fillMaxSize()) {
             state.update?.let { info -> UpdateBanner(info, onDismiss = vm::dismissUpdate) }
             if (state.messages.isEmpty()) {
@@ -699,20 +691,35 @@ private fun Composer(
                     }
                 }
             }
+            // Thinking animation: fade the gradient into the input field while generating.
+            val fieldGlow by animateFloatAsState(
+                targetValue = if (generating) 1f else 0f,
+                animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+                label = "fieldGlow"
+            )
+            val fieldShape = RoundedCornerShape(12.dp)
             Row(verticalAlignment = Alignment.Bottom) {
                 IconButton(onClick = onAttach, enabled = !generating) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Attach image")
                 }
-                CompactOutlinedTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = "Message your model…",
-                    singleLine = false,
-                    maxLines = 5,
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                )
+                Box(Modifier.weight(1f)) {
+                    if (fieldGlow > 0.01f) {
+                        AnimatedDiagonalGradient(
+                            Modifier.matchParentSize().clip(fieldShape),
+                            intensity = fieldGlow
+                        )
+                    }
+                    CompactOutlinedTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = "Message your model…",
+                        singleLine = false,
+                        maxLines = 5,
+                        shape = fieldShape,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    )
+                }
                 Spacer(Modifier.width(8.dp))
                 val canSend = generating || value.isNotBlank() || attachments.isNotEmpty()
                 IconButton(onClick = if (generating) onStop else onSend, enabled = canSend) {
@@ -977,10 +984,14 @@ private fun AssistantFooter(message: ChatMessage, onMoreDetail: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        TextButton(
-            onClick = onMoreDetail,
-            contentPadding = PaddingValues(horizontal = 8.dp)
-        ) { Text("More detail") }
+        IconButton(onClick = onMoreDetail, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.AutoMirrored.Filled.ReadMore,
+                contentDescription = "More detail",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 
     if (details != null && expanded) {
