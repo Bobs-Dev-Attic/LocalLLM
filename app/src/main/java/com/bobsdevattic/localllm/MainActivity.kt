@@ -27,12 +27,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -54,6 +56,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -129,6 +132,28 @@ private fun Typography.scaled(scale: Float): Typography {
 @Composable
 private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
     var showSettings by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    // Keep the latest content in view as the answer streams in and when it finishes.
+    val streamingLength = state.messages.lastOrNull()?.content?.length ?: 0
+    LaunchedEffect(state.messages.size, streamingLength, state.isGenerating) {
+        val itemCount = state.messages.size + if (state.isGenerating) 1 else 0
+        if (itemCount > 0) listState.scrollToItem(itemCount - 1)
+    }
+
+    // Live elapsed timer shown while the model is processing.
+    var generatingElapsedMs by remember { mutableStateOf(0L) }
+    LaunchedEffect(state.isGenerating) {
+        if (state.isGenerating) {
+            val start = System.currentTimeMillis()
+            while (true) {
+                generatingElapsedMs = System.currentTimeMillis() - start
+                kotlinx.coroutines.delay(100)
+            }
+        } else {
+            generatingElapsedMs = 0L
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -197,6 +222,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                 }
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -207,7 +233,10 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Generating…", style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    "Generating… ${elapsedLabel(generatingElapsedMs)}",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
                             }
                         }
                     }
@@ -442,41 +471,32 @@ private fun MessageBubble(message: ChatMessage) {
             )
         }
         if (!isUser && message.processing != null) {
-            ProcessingSummary(message.processing)
-            ProcessingPanel(message.processing)
+            ProcessingInfo(message.processing)
         }
     }
 }
 
 @Composable
-private fun ProcessingSummary(details: ProcessingDetails) {
-    Text(
-        processingSummaryText(details),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, top = 3.dp)
-    )
-}
-
-private fun processingSummaryText(details: ProcessingDetails): String {
-    val time = details.totalDurationMs.let { ms ->
-        if (ms < 1000) "$ms ms" else String.format(java.util.Locale.US, "%.1f s", ms / 1000.0)
-    }
-    val tokens = when {
-        details.promptTokens != null && details.completionTokens != null ->
-            "${details.promptTokens + details.completionTokens} tokens (${details.promptTokens}+${details.completionTokens})"
-        details.completionTokens != null -> "${details.completionTokens} tokens"
-        details.promptTokens != null -> "${details.promptTokens} prompt tokens"
-        else -> "tokens n/a"
-    }
-    return "$time · $tokens"
-}
-
-@Composable
-private fun ProcessingPanel(details: ProcessingDetails) {
+private fun ProcessingInfo(details: ProcessingDetails) {
     var expanded by remember(details.requestId) { mutableStateOf(false) }
-    TextButton(onClick = { expanded = !expanded }) {
-        Text(if (expanded) "Hide processing details" else "Processing details")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(top = 2.dp)
+    ) {
+        IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(28.dp)) {
+            Icon(
+                Icons.Outlined.Info,
+                contentDescription = if (expanded) "Hide processing details" else "Show processing details",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(2.dp))
+        Text(
+            processingSummaryText(details),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
     if (expanded) {
         Card(
@@ -496,6 +516,23 @@ private fun ProcessingPanel(details: ProcessingDetails) {
             }
         }
     }
+}
+
+private fun elapsedLabel(ms: Long): String =
+    String.format(java.util.Locale.US, "%.1fs", ms / 1000.0)
+
+private fun processingSummaryText(details: ProcessingDetails): String {
+    val time = details.totalDurationMs.let { ms ->
+        if (ms < 1000) "$ms ms" else String.format(java.util.Locale.US, "%.1f s", ms / 1000.0)
+    }
+    val tokens = when {
+        details.promptTokens != null && details.completionTokens != null ->
+            "${details.promptTokens + details.completionTokens} tokens (${details.promptTokens}+${details.completionTokens})"
+        details.completionTokens != null -> "${details.completionTokens} tokens"
+        details.promptTokens != null -> "${details.promptTokens} prompt tokens"
+        else -> null
+    }
+    return if (tokens != null) "$time · $tokens" else time
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
