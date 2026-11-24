@@ -135,7 +135,19 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
             TopAppBar(
                 title = {
                     Column {
-                        Text("LocalLLM", fontWeight = FontWeight.SemiBold)
+                        Row(
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("LocalLLM", fontWeight = FontWeight.SemiBold)
+                            if (state.appVersion.isNotBlank()) {
+                                Text(
+                                    "v${state.appVersion}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         Text(
                             state.connectionLabel,
                             style = MaterialTheme.typography.labelSmall,
