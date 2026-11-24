@@ -4,6 +4,12 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.17
+
+- Color themes now tint the whole chat window background and surfaces (not just
+  the accent and message bubbles).
+- Stronger, more visible field glow while the model is processing.
+
 ## 0.1.16
 
 - The "More detail" response action is now an icon.

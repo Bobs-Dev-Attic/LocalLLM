@@ -156,26 +156,38 @@ private fun colorSchemeFor(theme: ColorTheme, dark: Boolean): ColorScheme = when
         primaryContainer = Color(0xFF1565C0), onPrimaryContainer = Color(0xFFD6E3FF),
         secondary = Color(0xFF9FC3FF), onSecondary = Color(0xFF002F65),
         secondaryContainer = Color(0xFF28364D), onSecondaryContainer = Color(0xFFD6E3FF),
-        tertiary = Color(0xFF80CBC4)
+        tertiary = Color(0xFF80CBC4),
+        background = Color(0xFF0C1017), onBackground = Color(0xFFE6EDF7),
+        surface = Color(0xFF121926), onSurface = Color(0xFFE6EDF7),
+        surfaceVariant = Color(0xFF1E2A3C), onSurfaceVariant = Color(0xFFB6C4DC)
     ) else lightColorScheme(
         primary = Color(0xFF1565C0), onPrimary = Color.White,
         primaryContainer = Color(0xFFD6E3FF), onPrimaryContainer = Color(0xFF001A41),
         secondary = Color(0xFF1A73E8), onSecondary = Color.White,
         secondaryContainer = Color(0xFFDCE6FF), onSecondaryContainer = Color(0xFF001A41),
-        tertiary = Color(0xFF00897B)
+        tertiary = Color(0xFF00897B),
+        background = Color(0xFFEEF4FF), onBackground = Color(0xFF0E1A2B),
+        surface = Color(0xFFF7FAFF), onSurface = Color(0xFF0E1A2B),
+        surfaceVariant = Color(0xFFDCE6FF), onSurfaceVariant = Color(0xFF2B3A52)
     )
     ColorTheme.RAINBOW -> if (dark) darkColorScheme(
         primary = Color(0xFFFF80AB), onPrimary = Color(0xFF5A0022),
         primaryContainer = Color(0xFFAD1457), onPrimaryContainer = Color(0xFFFFD9E2),
         secondary = Color(0xFF80D8FF), onSecondary = Color(0xFF003544),
         secondaryContainer = Color(0xFF00516B), onSecondaryContainer = Color(0xFFBFEBFF),
-        tertiary = Color(0xFFFFD180)
+        tertiary = Color(0xFFFFD180),
+        background = Color(0xFF140A10), onBackground = Color(0xFFF7E6EE),
+        surface = Color(0xFF1C1017), onSurface = Color(0xFFF7E6EE),
+        surfaceVariant = Color(0xFF2E1A24), onSurfaceVariant = Color(0xFFDCB6C6)
     ) else lightColorScheme(
         primary = Color(0xFFD81B60), onPrimary = Color.White,
         primaryContainer = Color(0xFFFFD9E2), onPrimaryContainer = Color(0xFF3E0014),
         secondary = Color(0xFF00ACC1), onSecondary = Color.White,
         secondaryContainer = Color(0xFFB3EBF2), onSecondaryContainer = Color(0xFF00363D),
-        tertiary = Color(0xFFF57C00)
+        tertiary = Color(0xFFF57C00),
+        background = Color(0xFFFFF3F7), onBackground = Color(0xFF2A0C18),
+        surface = Color(0xFFFFF8FB), onSurface = Color(0xFF2A0C18),
+        surfaceVariant = Color(0xFFFFE0EA), onSurfaceVariant = Color(0xFF5A2A3C)
     )
     ColorTheme.HIGH_CONTRAST -> if (dark) darkColorScheme(
         primary = Color.White, onPrimary = Color.Black,
@@ -195,13 +207,19 @@ private fun colorSchemeFor(theme: ColorTheme, dark: Boolean): ColorScheme = when
         primaryContainer = Color(0xFF3A3A3A), onPrimaryContainer = Color(0xFFE6E6E6),
         secondary = Color(0xFFB0B0B0), onSecondary = Color(0xFF1A1A1A),
         secondaryContainer = Color(0xFF333333), onSecondaryContainer = Color(0xFFE6E6E6),
-        tertiary = Color(0xFF9E9E9E)
+        tertiary = Color(0xFF9E9E9E),
+        background = Color(0xFF0E0E0E), onBackground = Color(0xFFE6E6E6),
+        surface = Color(0xFF161616), onSurface = Color(0xFFE6E6E6),
+        surfaceVariant = Color(0xFF262626), onSurfaceVariant = Color(0xFFBFBFBF)
     ) else lightColorScheme(
         primary = Color(0xFF424242), onPrimary = Color.White,
         primaryContainer = Color(0xFFE2E2E2), onPrimaryContainer = Color(0xFF1A1A1A),
         secondary = Color(0xFF616161), onSecondary = Color.White,
         secondaryContainer = Color(0xFFE8E8E8), onSecondaryContainer = Color(0xFF1A1A1A),
-        tertiary = Color(0xFF757575)
+        tertiary = Color(0xFF757575),
+        background = Color(0xFFF2F2F2), onBackground = Color(0xFF1A1A1A),
+        surface = Color(0xFFFAFAFA), onSurface = Color(0xFF1A1A1A),
+        surfaceVariant = Color(0xFFE6E6E6), onSurfaceVariant = Color(0xFF3A3A3A)
     )
 }
 
@@ -814,14 +832,14 @@ private fun AnimatedDiagonalGradient(modifier: Modifier, intensity: Float = 1f) 
         animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Restart),
         label = "shift"
     )
-    // Slow breathing so the subtle tint keeps fading in and out while processing.
+    // Slow breathing so the tint keeps fading in and out while processing.
     val breathe by transition.animateFloat(
-        initialValue = 0.4f,
+        initialValue = 0.6f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "breathe"
     )
-    val alpha = (0.24f * intensity * breathe).coerceIn(0f, 1f)
+    val alpha = (0.6f * intensity * breathe).coerceIn(0f, 1f)
     val c1 = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
     val c2 = MaterialTheme.colorScheme.tertiary.copy(alpha = alpha)
     val c3 = MaterialTheme.colorScheme.secondary.copy(alpha = alpha)
