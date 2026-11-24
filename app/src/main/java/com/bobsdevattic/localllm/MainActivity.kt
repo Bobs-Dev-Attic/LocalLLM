@@ -77,7 +77,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.mikepenz.markdown.m3.Markdown
 import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ProcessingDetails
@@ -498,9 +497,9 @@ private fun MessageBubble(message: ChatMessage) {
             modifier = Modifier.fillMaxWidth(if (isUser) 0.88f else 1f)
         ) {
             if (!isUser && !message.isStreaming && message.content.isNotEmpty()) {
-                // Render the finished assistant reply as Markdown (Material3-themed).
-                Markdown(
-                    content = message.content,
+                // Render the finished assistant reply as Markdown.
+                MarkdownText(
+                    markdown = message.content,
                     modifier = Modifier.padding(14.dp)
                 )
             } else {
