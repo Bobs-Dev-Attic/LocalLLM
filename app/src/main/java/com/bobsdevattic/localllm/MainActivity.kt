@@ -710,7 +710,7 @@ private fun Composer(
                     placeholder = "Message your model…",
                     singleLine = false,
                     maxLines = 5,
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                 )
                 Spacer(Modifier.width(8.dp))
