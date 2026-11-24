@@ -149,14 +149,30 @@ private fun LocalLlmRoot(vm: ChatViewModel = viewModel()) {
 private fun colorSchemeFor(theme: ColorTheme, dark: Boolean): ColorScheme = when (theme) {
     ColorTheme.DEFAULT -> if (dark) darkColorScheme() else lightColorScheme()
     ColorTheme.BLUE -> if (dark) darkColorScheme(
-        primary = Color(0xFF8AB4F8), secondary = Color(0xFF9FC3FF), tertiary = Color(0xFF80CBC4)
+        primary = Color(0xFF8AB4F8), onPrimary = Color(0xFF002F65),
+        primaryContainer = Color(0xFF1565C0), onPrimaryContainer = Color(0xFFD6E3FF),
+        secondary = Color(0xFF9FC3FF), onSecondary = Color(0xFF002F65),
+        secondaryContainer = Color(0xFF28364D), onSecondaryContainer = Color(0xFFD6E3FF),
+        tertiary = Color(0xFF80CBC4)
     ) else lightColorScheme(
-        primary = Color(0xFF1A73E8), secondary = Color(0xFF1565C0), tertiary = Color(0xFF00897B)
+        primary = Color(0xFF1565C0), onPrimary = Color.White,
+        primaryContainer = Color(0xFFD6E3FF), onPrimaryContainer = Color(0xFF001A41),
+        secondary = Color(0xFF1A73E8), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFDCE6FF), onSecondaryContainer = Color(0xFF001A41),
+        tertiary = Color(0xFF00897B)
     )
     ColorTheme.RAINBOW -> if (dark) darkColorScheme(
-        primary = Color(0xFFFF80AB), secondary = Color(0xFF80D8FF), tertiary = Color(0xFFFFD180)
+        primary = Color(0xFFFF80AB), onPrimary = Color(0xFF5A0022),
+        primaryContainer = Color(0xFFAD1457), onPrimaryContainer = Color(0xFFFFD9E2),
+        secondary = Color(0xFF80D8FF), onSecondary = Color(0xFF003544),
+        secondaryContainer = Color(0xFF00516B), onSecondaryContainer = Color(0xFFBFEBFF),
+        tertiary = Color(0xFFFFD180)
     ) else lightColorScheme(
-        primary = Color(0xFFD81B60), secondary = Color(0xFF00ACC1), tertiary = Color(0xFFF57C00)
+        primary = Color(0xFFD81B60), onPrimary = Color.White,
+        primaryContainer = Color(0xFFFFD9E2), onPrimaryContainer = Color(0xFF3E0014),
+        secondary = Color(0xFF00ACC1), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFB3EBF2), onSecondaryContainer = Color(0xFF00363D),
+        tertiary = Color(0xFFF57C00)
     )
     ColorTheme.HIGH_CONTRAST -> if (dark) darkColorScheme(
         primary = Color.White, onPrimary = Color.Black,
@@ -172,9 +188,17 @@ private fun colorSchemeFor(theme: ColorTheme, dark: Boolean): ColorScheme = when
         primaryContainer = Color.Black, onPrimaryContainer = Color.White
     )
     ColorTheme.MONOCHROME -> if (dark) darkColorScheme(
-        primary = Color(0xFFBDBDBD), secondary = Color(0xFF9E9E9E), tertiary = Color(0xFF757575)
+        primary = Color(0xFFCFCFCF), onPrimary = Color(0xFF1A1A1A),
+        primaryContainer = Color(0xFF3A3A3A), onPrimaryContainer = Color(0xFFE6E6E6),
+        secondary = Color(0xFFB0B0B0), onSecondary = Color(0xFF1A1A1A),
+        secondaryContainer = Color(0xFF333333), onSecondaryContainer = Color(0xFFE6E6E6),
+        tertiary = Color(0xFF9E9E9E)
     ) else lightColorScheme(
-        primary = Color(0xFF424242), secondary = Color(0xFF616161), tertiary = Color(0xFF757575)
+        primary = Color(0xFF424242), onPrimary = Color.White,
+        primaryContainer = Color(0xFFE2E2E2), onPrimaryContainer = Color(0xFF1A1A1A),
+        secondary = Color(0xFF616161), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFE8E8E8), onSecondaryContainer = Color(0xFF1A1A1A),
+        tertiary = Color(0xFF757575)
     )
 }
 
@@ -775,16 +799,20 @@ private fun AnimatedDiagonalGradient(modifier: Modifier) {
         animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Restart),
         label = "shift"
     )
-    val c1 = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-    val c2 = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.16f)
-    val c3 = MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)
+    val alpha = 0.38f
+    val c1 = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+    val c2 = MaterialTheme.colorScheme.tertiary.copy(alpha = alpha)
+    val c3 = MaterialTheme.colorScheme.secondary.copy(alpha = alpha)
     Canvas(modifier) {
+        // Diagonal gradient band that scrolls; the span is a fraction of the
+        // diagonal so the colored bands are distinct rather than washed out.
         val diagonal = size.width + size.height
-        val offset = shift * diagonal
+        val span = diagonal * 0.6f
+        val offset = shift * span
         drawRect(
             brush = Brush.linearGradient(
                 colors = listOf(c1, c2, c3, c1),
-                start = Offset(offset - diagonal, offset - diagonal),
+                start = Offset(offset - span, offset - span),
                 end = Offset(offset, offset),
                 tileMode = TileMode.Mirror
             )
