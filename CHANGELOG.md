@@ -4,6 +4,12 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.15
+
+- Smaller corner radius on the message composer field.
+- Moved the Copy and More detail actions to the right of the timing/tokens row,
+  on the same line.
+
 ## 0.1.14
 
 - New "Node Mind" app launcher icon (adaptive, with a themed-icon monochrome
