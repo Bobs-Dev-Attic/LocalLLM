@@ -160,10 +160,20 @@ internal fun parseApiBaseUrl(raw: String): HttpUrl {
     return parsed
 }
 
-internal fun isPrivateHttpHost(host: String): Boolean = runCatching {
-    val addresses = InetAddress.getAllByName(host)
-    addresses.isNotEmpty() &&
-        addresses.all { it.isSiteLocalAddress || it.isLoopbackAddress || it.isLinkLocalAddress }
-}.getOrDefault(false)
+internal fun isPrivateHttpHost(host: String): Boolean {
+    if (host.equals("localhost", ignoreCase = true)) return true
+    val ipv4Parts = host.split(".")
+    val isIpv4Literal = ipv4Parts.size == 4 && ipv4Parts.all { part ->
+        part.isNotEmpty() && part.all(Char::isDigit) &&
+            (part.toIntOrNull()?.let { it in 0..255 } == true)
+    }
+    val isIpv6Literal = host.contains(":") &&
+        host.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' || it == ':' }
+    if (!isIpv4Literal && !isIpv6Literal) return false
+    return runCatching {
+        val address = InetAddress.getByName(host)
+        address.isSiteLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress
+    }.getOrDefault(false)
+}
 
 class ApiException(message: String) : Exception(message)
