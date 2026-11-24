@@ -5,17 +5,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +36,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +50,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +58,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bobsdevattic.localllm.data.ChatMessage
@@ -60,22 +71,39 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { LocalLlmTheme { LocalLlmApp() } }
+        setContent { LocalLlmRoot() }
     }
 }
 
 @Composable
-private fun LocalLlmTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme(),
-        content = content
-    )
+private fun LocalLlmRoot(vm: ChatViewModel = viewModel()) {
+    val state by vm.state.collectAsState()
+    LocalLlmTheme(themeMode = state.themeMode, fontScale = state.fontSize.scale) {
+        LocalLlmApp(vm, state)
+    }
+}
+
+@Composable
+private fun LocalLlmTheme(
+    themeMode: ThemeMode,
+    fontScale: Float,
+    content: @Composable () -> Unit
+) {
+    val dark = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val density = LocalDensity.current
+    val scaledDensity = Density(density.density, density.fontScale * fontScale)
+    MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+        CompositionLocalProvider(LocalDensity provides scaledDensity, content = content)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
-    val state by vm.state.collectAsState()
+private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
     var showSettings by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -161,15 +189,19 @@ private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
     if (showSettings) {
         AlertDialog(
             onDismissRequest = { showSettings = false },
-            title = { Text("LM Studio connection") },
+            title = { Text("Settings") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     OutlinedTextField(
                         value = state.endpoint,
                         onValueChange = vm::updateEndpoint,
                         label = { Text("API base URL") },
                         placeholder = { Text("http://192.168.1.10:1234/v1") },
                         singleLine = true,
+                        enabled = !state.isConnecting,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
@@ -179,7 +211,21 @@ private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (state.isConnecting) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Testing connection & loading models…")
+                        }
+                    }
                     if (state.models.isNotEmpty()) {
+                        if (!state.isConnecting) {
+                            Text(
+                                "Loaded ${state.models.size} model${if (state.models.size == 1) "" else "s"}.",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         Text("Available models", style = MaterialTheme.typography.labelMedium)
                         state.models.take(6).forEach { model ->
                             TextButton(onClick = { vm.updateModel(model.id) }) {
@@ -196,12 +242,38 @@ private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+                    HorizontalDivider()
+                    Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                    Text("Theme", style = MaterialTheme.typography.labelMedium)
+                    ChoiceChips(
+                        options = ThemeMode.entries,
+                        selected = state.themeMode,
+                        label = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
+                        onSelect = vm::setThemeMode
+                    )
+                    Text("Font size", style = MaterialTheme.typography.labelMedium)
+                    ChoiceChips(
+                        options = FontSize.entries,
+                        selected = state.fontSize,
+                        label = { it.label },
+                        onSelect = vm::setFontSize
+                    )
                 }
             },
             confirmButton = {
                 Button(onClick = vm::connect, enabled = !state.isConnecting) {
-                    if (state.isConnecting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    else Text("Test & load models")
+                    if (state.isConnecting) {
+                        CircularProgressIndicator(
+                            Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Loading…")
+                    } else {
+                        Text("Test & load models")
+                    }
                 }
             },
             dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Close") } }
@@ -219,7 +291,10 @@ private fun Composer(
 ) {
     Surface(shadowElevation = 5.dp) {
         Row(
-            Modifier.fillMaxWidth().imePadding().padding(horizontal = 12.dp, vertical = 10.dp),
+            Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.Bottom
         ) {
             OutlinedTextField(
@@ -288,6 +363,25 @@ private fun ProcessingPanel(details: ProcessingDetails) {
                 DetailRow("Finish reason", details.finishReason ?: "Not reported by server")
                 DetailRow("Outcome", details.outcome)
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> ChoiceChips(
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { option ->
+            FilterChip(
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                label = { Text(label(option)) }
+            )
         }
     }
 }

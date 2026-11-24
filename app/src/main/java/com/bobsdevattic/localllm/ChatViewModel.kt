@@ -16,6 +16,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+enum class FontSize(val label: String, val scale: Float) {
+    SMALL("Small", 0.85f),
+    MEDIUM("Medium", 1.0f),
+    LARGE("Large", 1.2f)
+}
+
 data class ChatUiState(
     val endpoint: String = "http://192.168.1.10:1234/v1",
     val model: String = "",
@@ -25,6 +33,8 @@ data class ChatUiState(
     val isConnecting: Boolean = false,
     val isGenerating: Boolean = false,
     val connectionLabel: String = "Not connected",
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val fontSize: FontSize = FontSize.MEDIUM,
     val error: String? = null
 )
 
@@ -34,11 +44,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(
         ChatUiState(
             endpoint = preferences.getString("endpoint", "http://192.168.1.10:1234/v1")!!,
-            model = preferences.getString("model", "")!!
+            model = preferences.getString("model", "")!!,
+            themeMode = runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "SYSTEM") }
+                .getOrDefault(ThemeMode.SYSTEM),
+            fontSize = runCatching { FontSize.valueOf(preferences.getString("font_size", null) ?: "MEDIUM") }
+                .getOrDefault(FontSize.MEDIUM)
         )
     )
     val state = _state.asStateFlow()
     private var generationJob: Job? = null
+
+    fun setThemeMode(mode: ThemeMode) {
+        _state.update { it.copy(themeMode = mode) }
+        preferences.edit().putString("theme_mode", mode.name).apply()
+    }
+
+    fun setFontSize(size: FontSize) {
+        _state.update { it.copy(fontSize = size) }
+        preferences.edit().putString("font_size", size.name).apply()
+    }
 
     fun updateEndpoint(value: String) {
         _state.update { it.copy(endpoint = value) }
