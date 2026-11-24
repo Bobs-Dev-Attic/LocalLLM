@@ -30,7 +30,7 @@ class EndpointValidationTest {
     }
 
     @Test fun refusesPublicHostsForPlainHttp() {
-        assertFalse(isPrivateHttpHost("example.com"))
+        assertFalse(isPrivateHttpHost("8.8.8.8"))
     }
 
     @Test fun allowsLoopbackForLocalDevelopment() {
