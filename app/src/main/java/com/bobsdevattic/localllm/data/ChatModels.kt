@@ -27,6 +27,7 @@ data class ProcessingDetails(
 data class ModelInfo(val id: String)
 
 sealed interface ChatStreamEvent {
+    data object Started : ChatStreamEvent
     data class Delta(val text: String) : ChatStreamEvent
     data class Completed(
         val promptTokens: Int?,
