@@ -4,6 +4,11 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.18
+
+- Resubmit a sent message: each of your messages now has a replay icon that
+  re-sends the same text (and any attached images) as a new turn.
+
 ## 0.1.17
 
 - Color themes now tint the whole chat window background and surfaces (not just

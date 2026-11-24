@@ -60,6 +60,7 @@ import androidx.compose.material.icons.automirrored.filled.ReadMore
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Info
@@ -396,7 +397,13 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                     verticalArrangement = Arrangement.spacedBy(listSpacing)
                 ) {
                     items(state.messages, key = { it.id }) { message ->
-                        MessageBubble(message, bubblePadding, onMoreDetail = vm::moreDetail)
+                        MessageBubble(
+                            message,
+                            bubblePadding,
+                            onMoreDetail = vm::moreDetail,
+                            canResubmit = !state.isGenerating && state.model.isNotBlank(),
+                            onResubmit = { vm.resubmit(message) }
+                        )
                     }
                     if (state.isGenerating) {
                         item {
@@ -913,7 +920,9 @@ private fun formatTimestamp(ms: Long): String =
 private fun MessageBubble(
     message: ChatMessage,
     contentPadding: Dp = 14.dp,
-    onMoreDetail: () -> Unit = {}
+    onMoreDetail: () -> Unit = {},
+    canResubmit: Boolean = false,
+    onResubmit: () -> Unit = {}
 ) {
     val isUser = message.role == MessageRole.USER
     Column(
@@ -951,6 +960,20 @@ private fun MessageBubble(
         }
         if (!isUser && !message.isStreaming && (message.content.isNotEmpty() || message.processing != null)) {
             AssistantFooter(message, onMoreDetail)
+        }
+        if (isUser && (message.content.isNotEmpty() || message.attachments.isNotEmpty())) {
+            IconButton(
+                onClick = onResubmit,
+                enabled = canResubmit,
+                modifier = Modifier.size(30.dp).padding(top = 2.dp)
+            ) {
+                Icon(
+                    Icons.Default.Replay,
+                    contentDescription = "Resubmit this message",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }

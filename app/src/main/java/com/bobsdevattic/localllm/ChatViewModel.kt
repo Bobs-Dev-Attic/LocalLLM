@@ -370,6 +370,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         send()
     }
 
+    /** Re-send a previously submitted user message as a new turn. */
+    fun resubmit(message: ChatMessage) {
+        if (message.role != MessageRole.USER) return
+        if (state.value.isGenerating || state.value.model.isBlank()) return
+        _state.update { it.copy(draft = message.content, pendingAttachments = message.attachments) }
+        send()
+    }
+
     fun stop() {
         generationJob?.cancel()
         generationJob = null
