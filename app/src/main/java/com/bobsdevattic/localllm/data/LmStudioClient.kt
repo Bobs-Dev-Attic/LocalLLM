@@ -96,7 +96,8 @@ class LmStudioClient {
                             throw ApiException(error.optString("message", "The model server returned an error.").take(300))
                         }
                         val choice = json.optJSONArray("choices")?.optJSONObject(0)
-                        val delta = choice?.optJSONObject("delta")?.optString("content").orEmpty()
+                        val delta = choice?.optJSONObject("delta")?.optString("content")
+                            ?.takeUnless { it == "null" }.orEmpty()
                         if (delta.isNotEmpty()) trySend(ChatStreamEvent.Delta(delta))
                         finishReason = choice?.optString("finish_reason")
                             ?.takeUnless { it == "null" || it.isBlank() } ?: finishReason
