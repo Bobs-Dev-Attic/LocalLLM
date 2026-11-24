@@ -4,6 +4,16 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.11
+
+- Image input: attach photos to a message (Android photo picker) and send them to
+  vision-capable LM Studio models as OpenAI image parts. Images are downscaled,
+  shown as thumbnails in the composer and in the chat, and saved with history.
+
+## 0.1.10
+
+- Left-aligned the conversation history list items.
+
 ## 0.1.9
 
 - Conversation history: save multiple conversations and reopen old ones from a

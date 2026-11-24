@@ -5,8 +5,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -14,6 +17,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +35,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -43,6 +49,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
@@ -85,6 +93,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.input.VisualTransformation
@@ -102,7 +113,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bobsdevattic.localllm.data.Attachment
 import com.bobsdevattic.localllm.data.ChatMessage
+import com.bobsdevattic.localllm.data.ImageUtil
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ProcessingDetails
 import com.bobsdevattic.localllm.data.UpdateInfo
@@ -204,6 +217,9 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
     var showSettings by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) vm.addAttachment(uri)
+    }
 
     // Tighten chat spacing at the smaller font sizes.
     val compact = state.fontSize.scale <= FontSize.SMALL.scale
@@ -277,7 +293,14 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                 onValueChange = vm::updateDraft,
                 onSend = vm::send,
                 onStop = vm::stop,
-                generating = state.isGenerating
+                generating = state.isGenerating,
+                attachments = state.pendingAttachments,
+                onAttach = {
+                    pickImage.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                onRemoveAttachment = vm::removeAttachment
             )
         }
     ) { padding ->
@@ -590,34 +613,86 @@ private fun Composer(
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
-    generating: Boolean
+    generating: Boolean,
+    attachments: List<Attachment>,
+    onAttach: () -> Unit,
+    onRemoveAttachment: (String) -> Unit
 ) {
     Surface(shadowElevation = 5.dp) {
-        Row(
+        Column(
             Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.Bottom
+                .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
-            CompactOutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
-                placeholder = "Message your model…",
-                singleLine = false,
-                maxLines = 5,
-                shape = RoundedCornerShape(24.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            IconButton(onClick = if (generating) onStop else onSend, enabled = generating || value.isNotBlank()) {
-                Icon(
-                    if (generating) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send,
-                    contentDescription = if (generating) "Stop generation" else "Send message"
+            if (attachments.isNotEmpty()) {
+                Row(
+                    Modifier.padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    attachments.forEach { attachment ->
+                        Box {
+                            AttachmentThumbnail(attachment.path, size = 56.dp)
+                            IconButton(
+                                onClick = { onRemoveAttachment(attachment.path) },
+                                modifier = Modifier.align(Alignment.TopEnd).size(22.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Remove image",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.Bottom) {
+                IconButton(onClick = onAttach, enabled = !generating) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Attach image")
+                }
+                CompactOutlinedTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = "Message your model…",
+                    singleLine = false,
+                    maxLines = 5,
+                    shape = RoundedCornerShape(24.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                 )
+                Spacer(Modifier.width(8.dp))
+                val canSend = generating || value.isNotBlank() || attachments.isNotEmpty()
+                IconButton(onClick = if (generating) onStop else onSend, enabled = canSend) {
+                    Icon(
+                        if (generating) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send,
+                        contentDescription = if (generating) "Stop generation" else "Send message"
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun AttachmentThumbnail(path: String, size: Dp) {
+    val bitmap = remember(path) { ImageUtil.decodeThumbnail(path, 256)?.asImageBitmap() }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = "Attached image",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(size)
+                .clip(RoundedCornerShape(10.dp))
+        )
+    } else {
+        Box(
+            Modifier
+                .size(size)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
     }
 }
 
@@ -761,19 +836,25 @@ private fun MessageBubble(message: ChatMessage, contentPadding: Dp = 14.dp) {
             ),
             modifier = Modifier.fillMaxWidth(if (isUser) 0.88f else 1f)
         ) {
-            if (!isUser && !message.isStreaming && message.content.isNotEmpty()) {
-                // Render the finished assistant reply as Markdown.
-                MarkdownText(
-                    markdown = message.content,
-                    modifier = Modifier.padding(contentPadding)
-                )
-            } else {
-                Text(
-                    message.content.ifEmpty { if (message.isStreaming) " " else "(No text returned)" },
-                    modifier = Modifier.padding(contentPadding),
-                    color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(Modifier.padding(contentPadding)) {
+                if (message.attachments.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        message.attachments.forEach { attachment ->
+                            AttachmentThumbnail(attachment.path, size = 120.dp)
+                        }
+                    }
+                    if (message.content.isNotEmpty()) Spacer(Modifier.height(8.dp))
+                }
+                if (!isUser && !message.isStreaming && message.content.isNotEmpty()) {
+                    // Render the finished assistant reply as Markdown.
+                    MarkdownText(markdown = message.content)
+                } else if (message.content.isNotEmpty() || message.attachments.isEmpty()) {
+                    Text(
+                        message.content.ifEmpty { if (message.isStreaming) " " else "(No text returned)" },
+                        color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
         if (!isUser && message.processing != null) {

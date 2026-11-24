@@ -4,10 +4,14 @@ import java.util.UUID
 
 enum class MessageRole { USER, ASSISTANT }
 
+/** A local image attached to a user message (file path in app storage). */
+data class Attachment(val path: String, val mimeType: String = "image/jpeg")
+
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: MessageRole,
     val content: String,
+    val attachments: List<Attachment> = emptyList(),
     val processing: ProcessingDetails? = null,
     val isStreaming: Boolean = false
 )

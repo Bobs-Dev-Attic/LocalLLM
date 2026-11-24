@@ -65,7 +65,26 @@ class LmStudioClient {
                 messages.forEach { message ->
                     put(JSONObject().apply {
                         put("role", if (message.role == MessageRole.USER) "user" else "assistant")
-                        put("content", message.content)
+                        if (message.attachments.isEmpty()) {
+                            put("content", message.content)
+                        } else {
+                            // OpenAI-style multimodal content: text part + one image part each.
+                            put("content", JSONArray().apply {
+                                if (message.content.isNotBlank()) {
+                                    put(JSONObject().put("type", "text").put("text", message.content))
+                                }
+                                message.attachments.forEach { attachment ->
+                                    put(
+                                        JSONObject()
+                                            .put("type", "image_url")
+                                            .put(
+                                                "image_url",
+                                                JSONObject().put("url", ImageUtil.toDataUrl(attachment.path, attachment.mimeType))
+                                            )
+                                    )
+                                }
+                            })
+                        }
                     })
                 }
             })

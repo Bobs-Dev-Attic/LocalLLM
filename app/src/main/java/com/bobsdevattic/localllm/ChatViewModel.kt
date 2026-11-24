@@ -1,11 +1,14 @@
 package com.bobsdevattic.localllm
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.bobsdevattic.localllm.data.Attachment
 import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.ChatStreamEvent
 import com.bobsdevattic.localllm.data.ConversationStore
+import com.bobsdevattic.localllm.data.ImageUtil
 import com.bobsdevattic.localllm.data.LmStudioClient
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ModelInfo
@@ -50,6 +53,7 @@ data class ChatUiState(
     val models: List<ModelInfo> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
     val conversations: List<ConversationSummary> = emptyList(),
+    val pendingAttachments: List<Attachment> = emptyList(),
     val draft: String = "",
     val isConnecting: Boolean = false,
     val isGenerating: Boolean = false,
@@ -212,6 +216,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateDraft(value: String) = _state.update { it.copy(draft = value) }
 
+    fun addAttachment(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val path = ImageUtil.importImage(getApplication<Application>(), uri) ?: return@launch
+            _state.update { it.copy(pendingAttachments = it.pendingAttachments + Attachment(path)) }
+        }
+    }
+
+    fun removeAttachment(path: String) {
+        _state.update { it.copy(pendingAttachments = it.pendingAttachments.filterNot { a -> a.path == path }) }
+        viewModelScope.launch(Dispatchers.IO) { ImageUtil.delete(path) }
+    }
+
     fun newChat() {
         if (state.value.isGenerating) stop()
         persistConversation(state.value.messages)
@@ -254,19 +270,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun send() {
         val current = state.value
         val prompt = current.draft.trim()
-        if (prompt.isEmpty() || current.isGenerating) return
+        if ((prompt.isEmpty() && current.pendingAttachments.isEmpty()) || current.isGenerating) return
         if (current.model.isBlank()) {
             _state.update { it.copy(error = "Connect to LM Studio and select a model first.") }
             return
         }
         val requestId = UUID.randomUUID().toString()
-        val userMessage = ChatMessage(role = MessageRole.USER, content = prompt)
+        val userMessage = ChatMessage(
+            role = MessageRole.USER,
+            content = prompt,
+            attachments = current.pendingAttachments
+        )
         val assistantMessage = ChatMessage(role = MessageRole.ASSISTANT, content = "", isStreaming = true)
         val history = current.messages.filter { !it.isStreaming }
         _state.update {
             it.copy(
                 messages = it.messages + userMessage + assistantMessage,
                 draft = "",
+                pendingAttachments = emptyList(),
                 isGenerating = true,
                 error = null
             )
