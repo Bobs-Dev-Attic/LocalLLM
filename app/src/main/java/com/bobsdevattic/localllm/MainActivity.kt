@@ -4,34 +4,31 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -69,8 +66,10 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun LocalLlmTheme(content: @Composable () -> Unit) {
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme(), content = content)
+    MaterialTheme(
+        colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme(),
+        content = content
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,18 +79,25 @@ private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
     var showSettings by remember { mutableStateOf(false) }
 
     Scaffold(
-        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text("LocalLLM", fontWeight = FontWeight.SemiBold)
-                        Text(state.connectionLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            state.connectionLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, contentDescription = "Connection settings") }
-                    IconButton(onClick = { vm.updateDraft("") ; }) { Icon(Icons.Default.Add, contentDescription = "New chat") }
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Connection settings")
+                    }
+                    IconButton(onClick = vm::newChat) {
+                        Icon(Icons.Default.Add, contentDescription = "New chat")
+                    }
                 }
             )
         },
@@ -108,9 +114,19 @@ private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (state.messages.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Your models. Your network. Your conversations.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-                        Text("Connect to LM Studio on your local network to get started.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "Your models. Your network. Your conversations.",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            "Connect to LM Studio on your local network to get started.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Button(onClick = { showSettings = true }) { Text("Configure server") }
                     }
                 }
@@ -121,17 +137,29 @@ private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
-                    if (state.isGenerating) item { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)); Text("Generating…", style = MaterialTheme.typography.labelMedium) } }
+                    if (state.isGenerating) {
+                        item {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Generating…", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
                 }
             }
             state.error?.let { error ->
-                Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp))
+                Text(
+                    error,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                )
             }
         }
     }
 
     if (showSettings) {
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { showSettings = false },
             title = { Text("LM Studio connection") },
             text = {
@@ -151,13 +179,29 @@ private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text("Use the server's LAN address and port from LM Studio. HTTP is accepted only for private-network addresses.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (state.models.isNotEmpty()) {
+                        Text("Available models", style = MaterialTheme.typography.labelMedium)
+                        state.models.take(6).forEach { model ->
+                            TextButton(onClick = { vm.updateModel(model.id) }) {
+                                Text(if (model.id == state.model) "✓  ${model.id}" else model.id)
+                            }
+                        }
+                        if (state.models.size > 6) {
+                            Text("+ ${state.models.size - 6} more models; enter an ID manually.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Text(
+                        "Use the server's LAN address and port from LM Studio. HTTP is accepted only for private-network addresses.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             },
             confirmButton = {
-                Button(onClick = { vm.connect() ; showSettings = false }, enabled = !state.isConnecting) {
-                    if (state.isConnecting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Text("Test & load models")
+                Button(onClick = vm::connect, enabled = !state.isConnecting) {
+                    if (state.isConnecting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    else Text("Test & load models")
                 }
             },
             dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Close") } }
@@ -166,7 +210,13 @@ private fun LocalLlmApp(vm: ChatViewModel = viewModel()) {
 }
 
 @Composable
-private fun Composer(value: String, onValueChange: (String) -> Unit, onSend: () -> Unit, onStop: () -> Unit, generating: Boolean) {
+private fun Composer(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+    generating: Boolean
+) {
     Surface(shadowElevation = 5.dp) {
         Row(
             Modifier.fillMaxWidth().imePadding().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -181,7 +231,10 @@ private fun Composer(value: String, onValueChange: (String) -> Unit, onSend: () 
             )
             Spacer(Modifier.width(8.dp))
             IconButton(onClick = if (generating) onStop else onSend, enabled = generating || value.isNotBlank()) {
-                Icon(if (generating) Icons.Default.Stop else Icons.Default.Send, contentDescription = if (generating) "Stop generation" else "Send message")
+                Icon(
+                    if (generating) Icons.Default.Stop else Icons.Default.Send,
+                    contentDescription = if (generating) "Stop generation" else "Send message"
+                )
             }
         }
     }
@@ -190,15 +243,24 @@ private fun Composer(value: String, onValueChange: (String) -> Unit, onSend: () 
 @Composable
 private fun MessageBubble(message: ChatMessage) {
     val isUser = message.role == MessageRole.USER
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isUser) Alignment.End else Alignment.Start) {
+    Column(
+        Modifier.fillMaxWidth(),
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+    ) {
         Card(
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(
-                containerColor = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                containerColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceVariant
             ),
             modifier = Modifier.fillMaxWidth(if (isUser) 0.88f else 1f)
         ) {
-            Text(message.content.ifEmpty { if (message.isStreaming) " " else "(No text returned)" }, modifier = Modifier.padding(14.dp), color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                message.content.ifEmpty { if (message.isStreaming) " " else "(No text returned)" },
+                modifier = Modifier.padding(14.dp),
+                color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         if (!isUser && message.processing != null) ProcessingPanel(message.processing)
     }
@@ -207,9 +269,14 @@ private fun MessageBubble(message: ChatMessage) {
 @Composable
 private fun ProcessingPanel(details: ProcessingDetails) {
     var expanded by remember(details.requestId) { mutableStateOf(false) }
-    TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide processing details" else "Processing details") }
+    TextButton(onClick = { expanded = !expanded }) {
+        Text(if (expanded) "Hide processing details" else "Processing details")
+    }
     if (expanded) {
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), modifier = Modifier.fillMaxWidth()) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 DetailRow("Model", details.model)
                 DetailRow("Endpoint", details.endpoint)
