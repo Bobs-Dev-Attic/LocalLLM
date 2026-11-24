@@ -4,6 +4,15 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.21
+
+- The Color picker now shows a small preview swatch (primary/secondary/tertiary)
+  next to each theme, in the dropdown and on the selected value.
+- The composer's Send button is disabled while not connected, so a tap on the
+  cloud-off icon no longer submits a message that would just fail.
+- Connection / "Test & load models" errors are shown in a prominent error
+  banner (icon + filled background) instead of plain red text.
+
 ## 0.1.20
 
 - Settings: the Theme and Color pickers are now dropdown fields instead of chip

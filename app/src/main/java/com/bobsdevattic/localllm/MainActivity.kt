@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -112,7 +113,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -694,7 +698,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    state.error?.let { ErrorCard(it) }
 
                     HorizontalDivider()
                     Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
@@ -705,12 +709,18 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         optionLabel = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
                         onSelect = vm::setThemeMode
                     )
+                    val swatchDark = when (state.themeMode) {
+                        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                        ThemeMode.LIGHT -> false
+                        ThemeMode.DARK -> true
+                    }
                     ChoiceDropdown(
                         label = "Color",
                         options = ColorTheme.entries,
                         selected = state.colorTheme,
                         optionLabel = { it.label },
-                        onSelect = vm::setColorTheme
+                        onSelect = vm::setColorTheme,
+                        leading = { ThemeSwatch(it, swatchDark) }
                     )
                     Text("Font size: ${state.fontSize.label}", style = MaterialTheme.typography.labelMedium)
                     Slider(
@@ -898,7 +908,9 @@ private fun Composer(
                     )
                 }
                 Spacer(Modifier.width(8.dp))
-                val canSend = generating || value.isNotBlank() || attachments.isNotEmpty()
+                // When not connected, the send button is disabled so a tap can't
+                // submit a message that would just fail — connect in Settings first.
+                val canSend = generating || (connected && (value.isNotBlank() || attachments.isNotEmpty()))
                 val sendIcon = when {
                     generating -> Icons.Default.Stop
                     !connected -> Icons.Default.CloudOff
@@ -1270,7 +1282,8 @@ private fun <T> ChoiceDropdown(
     options: List<T>,
     selected: T,
     optionLabel: (T) -> String,
-    onSelect: (T) -> Unit
+    onSelect: (T) -> Unit,
+    leading: (@Composable (T) -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
@@ -1285,6 +1298,7 @@ private fun <T> ChoiceDropdown(
             label = { Text(label) },
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
+            leadingIcon = if (leading != null) { { leading(selected) } } else null,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
@@ -1297,6 +1311,7 @@ private fun <T> ChoiceDropdown(
             options.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(optionLabel(option)) },
+                    leadingIcon = if (leading != null) { { leading(option) } } else null,
                     trailingIcon = {
                         if (option == selected) {
                             Icon(Icons.Default.Check, contentDescription = "Selected")
@@ -1309,6 +1324,59 @@ private fun <T> ChoiceDropdown(
                 )
             }
         }
+    }
+}
+
+/** Small three-band preview of a color theme's key colors. */
+@Composable
+private fun ThemeSwatch(theme: ColorTheme, dark: Boolean) {
+    val scheme = colorSchemeFor(theme, dark)
+    val bands = listOf(scheme.primary, scheme.secondary, scheme.tertiary)
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    Canvas(Modifier.size(width = 26.dp, height = 16.dp)) {
+        val r = 4.dp.toPx()
+        val bandW = size.width / bands.size
+        bands.forEachIndexed { i, color ->
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(i * bandW, 0f),
+                size = Size(bandW + if (i < bands.size - 1) r else 0f, size.height),
+                cornerRadius = CornerRadius(r, r)
+            )
+        }
+        drawRoundRect(
+            color = outline,
+            size = size,
+            cornerRadius = CornerRadius(r, r),
+            style = Stroke(width = 1.dp.toPx())
+        )
+    }
+}
+
+/** Prominent, color-filled error banner for connection / load failures. */
+@Composable
+private fun ErrorCard(message: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            Icons.Default.ErrorOutline,
+            contentDescription = "Error",
+            tint = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            message,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
