@@ -64,6 +64,13 @@ class ConversationStore(context: Context) {
                 .put("role", if (message.role == MessageRole.USER) "user" else "assistant")
                 .put("content", message.content)
             message.processing?.let { obj.put("processing", it.toJson()) }
+            if (message.attachments.isNotEmpty()) {
+                obj.put("attachments", JSONArray().apply {
+                    message.attachments.forEach { attachment ->
+                        put(JSONObject().put("path", attachment.path).put("mime", attachment.mimeType))
+                    }
+                })
+            }
             array.put(obj)
         }
         return array
@@ -75,13 +82,28 @@ class ConversationStore(context: Context) {
             for (index in 0 until length()) {
                 val obj = optJSONObject(index) ?: continue
                 val role = if (obj.optString("role") == "user") MessageRole.USER else MessageRole.ASSISTANT
+                val attachments = obj.optJSONArray("attachments").toAttachments()
                 add(
                     ChatMessage(
                         role = role,
                         content = obj.optString("content"),
+                        attachments = attachments,
                         processing = obj.optJSONObject("processing")?.toProcessingDetails()
                     )
                 )
+            }
+        }
+    }
+
+    private fun JSONArray?.toAttachments(): List<Attachment> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (index in 0 until length()) {
+                val obj = optJSONObject(index) ?: continue
+                val path = obj.optString("path")
+                if (path.isNotBlank()) {
+                    add(Attachment(path = path, mimeType = obj.optString("mime").ifBlank { "image/jpeg" }))
+                }
             }
         }
     }
