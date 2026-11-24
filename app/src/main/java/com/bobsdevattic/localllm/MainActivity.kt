@@ -14,6 +14,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -715,18 +716,18 @@ private fun HistoryDialog(
                     Text("No saved conversations yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     conversations.forEach { conversation ->
-                        TextButton(
-                            onClick = { onOpen(conversation.id) },
-                            modifier = Modifier.fillMaxWidth()
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpen(conversation.id) }
+                                .padding(vertical = 10.dp, horizontal = 4.dp)
                         ) {
-                            Column(Modifier.fillMaxWidth()) {
-                                Text(conversation.title, maxLines = 1)
-                                Text(
-                                    formatTimestamp(conversation.updatedAt),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Text(conversation.title, maxLines = 1)
+                            Text(
+                                formatTimestamp(conversation.updatedAt),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
