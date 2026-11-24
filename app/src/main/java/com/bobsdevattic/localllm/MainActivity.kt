@@ -924,11 +924,8 @@ private fun MessageBubble(
                 }
             }
         }
-        if (!isUser && !message.isStreaming && message.content.isNotEmpty()) {
-            MessageActions(message.content, onMoreDetail)
-        }
-        if (!isUser && message.processing != null) {
-            ProcessingInfo(message.processing)
+        if (!isUser && !message.isStreaming && (message.content.isNotEmpty() || message.processing != null)) {
+            AssistantFooter(message, onMoreDetail)
         }
     }
 }
@@ -942,66 +939,51 @@ private fun extractSources(content: String): List<String> =
         .toList()
 
 @Composable
-private fun MessageActions(content: String, onMoreDetail: () -> Unit) {
+private fun AssistantFooter(message: ChatMessage, onMoreDetail: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    val sources = remember(content) { extractSources(content) }
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { clipboard.setText(AnnotatedString(content)) }, modifier = Modifier.size(32.dp)) {
+    val details = message.processing
+    val sources = remember(message.content) { extractSources(message.content) }
+    var expanded by remember(message.id) { mutableStateOf(false) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+    ) {
+        // Left: timing / tokens summary with the details toggle.
+        if (details != null) {
+            IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(28.dp)) {
                 Icon(
-                    Icons.Default.ContentCopy,
-                    contentDescription = "Copy response",
-                    modifier = Modifier.size(16.dp),
+                    Icons.Outlined.Info,
+                    contentDescription = if (expanded) "Hide processing details" else "Show processing details",
+                    modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(Modifier.width(4.dp))
-            TextButton(onClick = onMoreDetail) { Text("More detail") }
-        }
-        if (sources.isNotEmpty()) {
+            Spacer(Modifier.width(2.dp))
             Text(
-                "Sources",
+                processingSummaryText(details),
                 style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(start = 4.dp)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            sources.forEach { url ->
-                Text(
-                    url,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .padding(start = 4.dp, top = 1.dp)
-                        .clickable { openUrl(context, url) }
-                )
-            }
         }
-    }
-}
-
-@Composable
-private fun ProcessingInfo(details: ProcessingDetails) {
-    var expanded by remember(details.requestId) { mutableStateOf(false) }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(top = 2.dp)
-    ) {
-        IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(28.dp)) {
+        Spacer(Modifier.weight(1f))
+        // Right: copy and more-detail actions.
+        IconButton(onClick = { clipboard.setText(AnnotatedString(message.content)) }, modifier = Modifier.size(32.dp)) {
             Icon(
-                Icons.Outlined.Info,
-                contentDescription = if (expanded) "Hide processing details" else "Show processing details",
-                modifier = Modifier.size(18.dp),
+                Icons.Default.ContentCopy,
+                contentDescription = "Copy response",
+                modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Spacer(Modifier.width(2.dp))
-        Text(
-            processingSummaryText(details),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        TextButton(
+            onClick = onMoreDetail,
+            contentPadding = PaddingValues(horizontal = 8.dp)
+        ) { Text("More detail") }
     }
-    if (expanded) {
+
+    if (details != null && expanded) {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
             modifier = Modifier.fillMaxWidth()
@@ -1017,6 +999,24 @@ private fun ProcessingInfo(details: ProcessingDetails) {
                 DetailRow("Finish reason", details.finishReason ?: "Not reported by server")
                 DetailRow("Outcome", details.outcome)
             }
+        }
+    }
+
+    if (sources.isNotEmpty()) {
+        Text(
+            "Sources",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+        )
+        sources.forEach { url ->
+            Text(
+                url,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(start = 4.dp, top = 1.dp)
+                    .clickable { openUrl(context, url) }
+            )
         }
     }
 }
