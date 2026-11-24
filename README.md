@@ -59,7 +59,7 @@ Use the host computer's LAN address, not `localhost` or `127.0.0.1` on the Andro
 - The app sends prompts to the LM Studio endpoint that the user configures. The model host therefore receives conversation content.
 - No analytics or developer telemetry is implemented.
 - Default diagnostics show request metadata and do not intentionally persist prompts or completions.
-- HTTPS is preferred when available. LM Studio commonly uses HTTP on a private LAN. Android's cleartext traffic policy is app-wide for this first version because the endpoint is user-configurable; application validation limits HTTP URLs to addresses that resolve exclusively to private, loopback, or link-local IP ranges. Redirects are disabled. This is defense in depth, not a substitute for using a trusted network.
+- HTTPS is preferred when available. LM Studio commonly uses HTTP on a private LAN. Android's cleartext traffic policy is app-wide for this first version because the endpoint is user-configurable; application validation limits HTTP URLs to literal private, loopback, or link-local IP addresses (plus localhost), avoiding hostname-based DNS rebinding for cleartext requests. Redirects are disabled. This is defense in depth, not a substitute for using a trusted network.
 - Do not expose the LM Studio server directly to the public internet. A hostile device on the same LAN may still observe or attack unencrypted HTTP traffic.
 - Backup is disabled for the initial app foundation. Endpoint settings are stored in app-private preferences.
 
