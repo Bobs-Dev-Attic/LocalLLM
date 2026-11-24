@@ -358,6 +358,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                 onSend = vm::send,
                 onStop = vm::stop,
                 generating = state.isGenerating,
+                connected = state.connectionLabel.startsWith("Connected"),
                 attachments = state.pendingAttachments,
                 onAttach = {
                     pickImage.launch(
@@ -683,6 +684,7 @@ private fun Composer(
     onSend: () -> Unit,
     onStop: () -> Unit,
     generating: Boolean,
+    connected: Boolean,
     attachments: List<Attachment>,
     onAttach: () -> Unit,
     onRemoveAttachment: (String) -> Unit
@@ -747,10 +749,21 @@ private fun Composer(
                 }
                 Spacer(Modifier.width(8.dp))
                 val canSend = generating || value.isNotBlank() || attachments.isNotEmpty()
+                val sendIcon = when {
+                    generating -> Icons.Default.Stop
+                    !connected -> Icons.Default.CloudOff
+                    else -> Icons.AutoMirrored.Filled.Send
+                }
                 IconButton(onClick = if (generating) onStop else onSend, enabled = canSend) {
                     Icon(
-                        if (generating) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send,
-                        contentDescription = if (generating) "Stop generation" else "Send message"
+                        sendIcon,
+                        contentDescription = when {
+                            generating -> "Stop generation"
+                            !connected -> "Not connected — connect in Settings before sending"
+                            else -> "Send message"
+                        },
+                        tint = if (!connected && !generating) MaterialTheme.colorScheme.outline
+                        else LocalContentColor.current
                     )
                 }
             }
@@ -925,17 +938,14 @@ private fun MessageBubble(
     onResubmit: () -> Unit = {}
 ) {
     val isUser = message.role == MessageRole.USER
-    Column(
-        Modifier.fillMaxWidth(),
-        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
-    ) {
+    val bubble = @Composable {
         Card(
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(
                 containerColor = if (isUser) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceVariant
             ),
-            modifier = Modifier.fillMaxWidth(if (isUser) 0.88f else 1f)
+            modifier = if (isUser) Modifier else Modifier.fillMaxWidth()
         ) {
             Column(Modifier.padding(contentPadding)) {
                 if (message.attachments.isNotEmpty()) {
@@ -958,21 +968,34 @@ private fun MessageBubble(
                 }
             }
         }
-        if (!isUser && !message.isStreaming && (message.content.isNotEmpty() || message.processing != null)) {
-            AssistantFooter(message, onMoreDetail)
-        }
-        if (isUser && (message.content.isNotEmpty() || message.attachments.isNotEmpty())) {
-            IconButton(
-                onClick = onResubmit,
-                enabled = canResubmit,
-                modifier = Modifier.size(30.dp).padding(top = 2.dp)
+    }
+    Column(
+        Modifier.fillMaxWidth(),
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+    ) {
+        if (isUser) {
+            // Resubmit icon sits inline, to the left of the (end-aligned) bubble.
+            val canResend = canResubmit && (message.content.isNotEmpty() || message.attachments.isNotEmpty())
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
-                    Icons.Default.Replay,
-                    contentDescription = "Resubmit this message",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
+                IconButton(onClick = onResubmit, enabled = canResend, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Default.Replay,
+                        contentDescription = "Resubmit this message",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                Box(Modifier.weight(1f, fill = false)) { bubble() }
+            }
+        } else {
+            Box(Modifier.fillMaxWidth()) { bubble() }
+            if (!message.isStreaming && (message.content.isNotEmpty() || message.processing != null)) {
+                AssistantFooter(message, onMoreDetail)
             }
         }
     }

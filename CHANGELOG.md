@@ -4,6 +4,13 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.19
+
+- The resubmit (replay) icon now sits inline, just left of each sent message,
+  instead of on its own line below.
+- When not connected to LM Studio, the composer's Send button shows a
+  cloud-off icon (dimmed) instead of the paper-plane, as a reminder to connect.
+
 ## 0.1.18
 
 - Resubmit a sent message: each of your messages now has a replay icon that
