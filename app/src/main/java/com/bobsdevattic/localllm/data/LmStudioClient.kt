@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -20,8 +21,8 @@ import java.util.concurrent.TimeUnit
 class LmStudioClient {
     private val http = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS) // Streaming responses may be long-lived.
-        .writeTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .followRedirects(false)
         .followSslRedirects(false)
         .build()
@@ -67,9 +68,8 @@ class LmStudioClient {
                 }
             })
         }
-        val url = base.newBuilder().addPathSegments("chat/completions").build()
         val request = Request.Builder()
-            .url(url)
+            .url(base.newBuilder().addPathSegments("chat/completions").build())
             .header("Accept", "text/event-stream")
             .header("X-Request-ID", requestId)
             .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -77,6 +77,7 @@ class LmStudioClient {
         val call = http.newCall(request)
         val job = launch(Dispatchers.IO) {
             try {
+                trySend(ChatStreamEvent.Started)
                 call.execute().use { response ->
                     if (!response.isSuccessful) {
                         val safeBody = response.body?.string().orEmpty().take(300)
@@ -87,6 +88,24 @@ class LmStudioClient {
                     var completionTokens: Int? = null
                     var finishReason: String? = null
                     val dataLines = mutableListOf<String>()
+
+                    fun processData(data: String) {
+                        if (data == "[DONE]") return
+                        val json = JSONObject(data)
+                        json.optJSONObject("error")?.let { error ->
+                            throw ApiException(error.optString("message", "The model server returned an error.").take(300))
+                        }
+                        val choice = json.optJSONArray("choices")?.optJSONObject(0)
+                        val delta = choice?.optJSONObject("delta")?.optString("content").orEmpty()
+                        if (delta.isNotEmpty()) trySend(ChatStreamEvent.Delta(delta))
+                        finishReason = choice?.optString("finish_reason")
+                            ?.takeUnless { it == "null" || it.isBlank() } ?: finishReason
+                        json.optJSONObject("usage")?.let { usage ->
+                            promptTokens = usage.optInt("prompt_tokens").takeIf { usage.has("prompt_tokens") }
+                            completionTokens = usage.optInt("completion_tokens").takeIf { usage.has("completion_tokens") }
+                        }
+                    }
+
                     while (!source.exhausted()) {
                         val line = source.readUtf8Line() ?: break
                         if (line.isEmpty()) {
@@ -94,21 +113,15 @@ class LmStudioClient {
                                 val data = dataLines.joinToString("\n")
                                 dataLines.clear()
                                 if (data == "[DONE]") break
-                                val json = JSONObject(data)
-                                val choices = json.optJSONArray("choices")
-                                val choice = choices?.optJSONObject(0)
-                                val delta = choice?.optJSONObject("delta")?.optString("content").orEmpty()
-                                if (delta.isNotEmpty()) trySend(ChatStreamEvent.Delta(delta))
-                                finishReason = choice?.optString("finish_reason")?.takeUnless { it == "null" || it.isBlank() } ?: finishReason
-                                val usage = json.optJSONObject("usage")
-                                if (usage != null) {
-                                    promptTokens = usage.optInt("prompt_tokens").takeIf { usage.has("prompt_tokens") }
-                                    completionTokens = usage.optInt("completion_tokens").takeIf { usage.has("completion_tokens") }
-                                }
+                                processData(data)
                             }
                         } else if (line.startsWith("data:")) {
                             dataLines += line.removePrefix("data:").trimStart()
                         }
+                    }
+                    if (dataLines.isNotEmpty()) {
+                        val data = dataLines.joinToString("\n")
+                        if (data != "[DONE]") processData(data)
                     }
                     trySend(ChatStreamEvent.Completed(promptTokens, completionTokens, finishReason))
                     close()
@@ -123,28 +136,30 @@ class LmStudioClient {
     }
 
     private suspend fun validateEndpoint(raw: String): HttpUrl {
-        val parsed = raw.trim().toHttpUrlOrNullSafe()
-            ?: throw ApiException("Enter a valid server URL, including http:// or https://.")
-        if (parsed.encodedUsername.isNotEmpty() || parsed.encodedPassword.isNotEmpty() ||
-            parsed.encodedQuery != null || parsed.encodedFragment != null
-        ) throw ApiException("The server URL must not contain credentials, query parameters, or a fragment.")
-        if (parsed.encodedPath.trimEnd('/') != "/v1") {
-            throw ApiException("Use the LM Studio API base URL ending in /v1.")
-        }
+        val parsed = parseApiBaseUrl(raw)
         if (parsed.scheme == "http") {
-            val host = parsed.host
-            val local = withContext(Dispatchers.IO) {
-                runCatching {
-                    val address = InetAddress.getByName(host)
-                    address.isSiteLocalAddress || address.isLoopbackAddress || host.endsWith(".local")
-                }.getOrDefault(false)
-            }
+            val local = withContext(Dispatchers.IO) { isPrivateHttpHost(parsed.host) }
             if (!local) throw ApiException("Unencrypted HTTP is allowed only for a private LAN or localhost address.")
         }
         return parsed
     }
-
-    private fun String.toHttpUrlOrNullSafe(): HttpUrl? = runCatching { toHttpUrl() }.getOrNull()
 }
+
+internal fun parseApiBaseUrl(raw: String): HttpUrl {
+    val parsed = runCatching { raw.trim().toHttpUrl() }.getOrNull()
+        ?: throw ApiException("Enter a valid server URL, including http:// or https://.")
+    if (parsed.encodedUsername.isNotEmpty() || parsed.encodedPassword.isNotEmpty() ||
+        parsed.encodedQuery != null || parsed.encodedFragment != null
+    ) throw ApiException("The server URL must not contain credentials, query parameters, or a fragment.")
+    if (parsed.encodedPath.trimEnd('/') != "/v1") {
+        throw ApiException("Use the LM Studio API base URL ending in /v1.")
+    }
+    return parsed
+}
+
+internal fun isPrivateHttpHost(host: String): Boolean = runCatching {
+    InetAddress.getAllByName(host).isNotEmpty() &&
+        InetAddress.getAllByName(host).all { it.isSiteLocalAddress || it.isLoopbackAddress || it.isLinkLocalAddress }
+}.getOrDefault(false)
 
 class ApiException(message: String) : Exception(message)
