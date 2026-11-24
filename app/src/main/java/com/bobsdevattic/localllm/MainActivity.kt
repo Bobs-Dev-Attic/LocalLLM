@@ -10,9 +10,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -346,9 +348,15 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
             )
         }
     ) { padding ->
+        // Fade the processing background in when generating starts and out when it ends.
+        val backgroundVisibility by animateFloatAsState(
+            targetValue = if (state.isGenerating) 1f else 0f,
+            animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+            label = "backgroundVisibility"
+        )
         Box(Modifier.fillMaxSize().padding(padding)) {
-            if (state.isGenerating) {
-                AnimatedDiagonalGradient(Modifier.matchParentSize())
+            if (backgroundVisibility > 0.01f) {
+                AnimatedDiagonalGradient(Modifier.matchParentSize(), intensity = backgroundVisibility)
             }
             Column(Modifier.fillMaxSize()) {
             state.update?.let { info -> UpdateBanner(info, onDismiss = vm::dismissUpdate) }
@@ -791,7 +799,7 @@ private fun CompactOutlinedTextField(
 }
 
 @Composable
-private fun AnimatedDiagonalGradient(modifier: Modifier) {
+private fun AnimatedDiagonalGradient(modifier: Modifier, intensity: Float = 1f) {
     val transition = rememberInfiniteTransition(label = "background")
     val shift by transition.animateFloat(
         initialValue = 0f,
@@ -799,7 +807,14 @@ private fun AnimatedDiagonalGradient(modifier: Modifier) {
         animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Restart),
         label = "shift"
     )
-    val alpha = 0.38f
+    // Slow breathing so the subtle tint keeps fading in and out while processing.
+    val breathe by transition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "breathe"
+    )
+    val alpha = (0.24f * intensity * breathe).coerceIn(0f, 1f)
     val c1 = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
     val c2 = MaterialTheme.colorScheme.tertiary.copy(alpha = alpha)
     val c3 = MaterialTheme.colorScheme.secondary.copy(alpha = alpha)

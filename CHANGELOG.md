@@ -4,6 +4,13 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.14
+
+- New "Node Mind" app launcher icon (adaptive, with a themed-icon monochrome
+  layer).
+- The processing background gradient is now subtle and gently breathes, fading
+  in when generation starts and out when it ends.
+
 ## 0.1.13
 
 - Color themes now set matching container colors, so message bubbles and chips
