@@ -74,6 +74,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -140,6 +141,13 @@ private fun Typography.scaled(scale: Float): Typography {
 private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
     var showSettings by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    // Tighten chat spacing at the smaller font sizes.
+    val compact = state.fontSize.scale <= FontSize.SMALL.scale
+    val bubblePadding = if (compact) 10.dp else 14.dp
+    val listSpacing = if (compact) 8.dp else 14.dp
+    val listHPadding = if (compact) 10.dp else 16.dp
+    val listVPadding = if (compact) 8.dp else 12.dp
 
     // Keep the latest content in view as the answer streams in and when it finishes.
     val streamingLength = state.messages.lastOrNull()?.content?.length ?: 0
@@ -231,10 +239,10 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = listHPadding, vertical = listVPadding),
+                    verticalArrangement = Arrangement.spacedBy(listSpacing)
                 ) {
-                    items(state.messages, key = { it.id }) { message -> MessageBubble(message) }
+                    items(state.messages, key = { it.id }) { message -> MessageBubble(message, bubblePadding) }
                     if (state.isGenerating) {
                         item {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -512,7 +520,7 @@ private fun Composer(
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(message: ChatMessage, contentPadding: Dp = 14.dp) {
     val isUser = message.role == MessageRole.USER
     Column(
         Modifier.fillMaxWidth(),
@@ -530,12 +538,12 @@ private fun MessageBubble(message: ChatMessage) {
                 // Render the finished assistant reply as Markdown.
                 MarkdownText(
                     markdown = message.content,
-                    modifier = Modifier.padding(14.dp)
+                    modifier = Modifier.padding(contentPadding)
                 )
             } else {
                 Text(
                     message.content.ifEmpty { if (message.isStreaming) " " else "(No text returned)" },
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.padding(contentPadding),
                     color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )

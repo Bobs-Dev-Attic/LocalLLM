@@ -21,7 +21,7 @@ class ConversationStore(context: Context) {
                 val obj = array.optJSONObject(index) ?: continue
                 val content = obj.optString("content")
                 val role = if (obj.optString("role") == "user") MessageRole.USER else MessageRole.ASSISTANT
-                add(ChatMessage(role = role, content = content))
+                add(ChatMessage(role = role, content = content, processing = obj.optJSONObject("processing")?.toProcessingDetails()))
             }
         }
     }.getOrDefault(emptyList())
@@ -30,15 +30,40 @@ class ConversationStore(context: Context) {
         runCatching {
             val array = JSONArray()
             messages.filter { !it.isStreaming }.forEach { message ->
-                array.put(
-                    JSONObject()
-                        .put("role", if (message.role == MessageRole.USER) "user" else "assistant")
-                        .put("content", message.content)
-                )
+                val obj = JSONObject()
+                    .put("role", if (message.role == MessageRole.USER) "user" else "assistant")
+                    .put("content", message.content)
+                message.processing?.let { obj.put("processing", it.toJson()) }
+                array.put(obj)
             }
             file.writeText(array.toString())
         }
     }
+
+    private fun ProcessingDetails.toJson(): JSONObject = JSONObject()
+        .put("requestId", requestId)
+        .put("endpoint", endpoint)
+        .put("model", model)
+        .put("totalDurationMs", totalDurationMs)
+        .put("outcome", outcome)
+        .apply {
+            timeToFirstTokenMs?.let { put("timeToFirstTokenMs", it) }
+            promptTokens?.let { put("promptTokens", it) }
+            completionTokens?.let { put("completionTokens", it) }
+            finishReason?.let { put("finishReason", it) }
+        }
+
+    private fun JSONObject.toProcessingDetails(): ProcessingDetails = ProcessingDetails(
+        requestId = optString("requestId"),
+        endpoint = optString("endpoint"),
+        model = optString("model"),
+        timeToFirstTokenMs = if (has("timeToFirstTokenMs")) getLong("timeToFirstTokenMs") else null,
+        totalDurationMs = optLong("totalDurationMs"),
+        promptTokens = if (has("promptTokens")) getInt("promptTokens") else null,
+        completionTokens = if (has("completionTokens")) getInt("completionTokens") else null,
+        finishReason = if (has("finishReason")) optString("finishReason") else null,
+        outcome = optString("outcome")
+    )
 
     fun clear() {
         runCatching { if (file.exists()) file.delete() }
