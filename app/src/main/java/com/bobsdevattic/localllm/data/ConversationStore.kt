@@ -4,39 +4,85 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.UUID
+
+/** A saved conversation: its id, a display title, last-updated time, and messages. */
+data class SavedConversation(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String,
+    val updatedAt: Long,
+    val messages: List<ChatMessage>
+)
 
 /**
- * Persists the current conversation to the app's private storage so it can be
- * restored after the app is closed and reopened. Message text only — transient
- * fields (streaming state, processing details) are not saved.
+ * Persists all conversations to the app's private storage as a single JSON file,
+ * so old conversations can be reopened and the current one restored after
+ * the app is closed. Message text and processing details are saved; transient
+ * streaming state is not.
  */
 class ConversationStore(context: Context) {
-    private val file = File(context.filesDir, "conversation.json")
+    private val file = File(context.filesDir, "conversations.json")
 
-    fun load(): List<ChatMessage> = runCatching {
+    fun loadAll(): List<SavedConversation> = runCatching {
         if (!file.exists()) return emptyList()
         val array = JSONArray(file.readText())
         buildList {
             for (index in 0 until array.length()) {
                 val obj = array.optJSONObject(index) ?: continue
-                val content = obj.optString("content")
-                val role = if (obj.optString("role") == "user") MessageRole.USER else MessageRole.ASSISTANT
-                add(ChatMessage(role = role, content = content, processing = obj.optJSONObject("processing")?.toProcessingDetails()))
+                add(
+                    SavedConversation(
+                        id = obj.optString("id").ifBlank { UUID.randomUUID().toString() },
+                        title = obj.optString("title"),
+                        updatedAt = obj.optLong("updatedAt"),
+                        messages = obj.optJSONArray("messages").toMessages()
+                    )
+                )
             }
-        }
+        }.sortedByDescending { it.updatedAt }
     }.getOrDefault(emptyList())
 
-    fun save(messages: List<ChatMessage>) {
+    fun saveAll(conversations: List<SavedConversation>) {
         runCatching {
             val array = JSONArray()
-            messages.filter { !it.isStreaming }.forEach { message ->
-                val obj = JSONObject()
-                    .put("role", if (message.role == MessageRole.USER) "user" else "assistant")
-                    .put("content", message.content)
-                message.processing?.let { obj.put("processing", it.toJson()) }
-                array.put(obj)
+            conversations.forEach { conversation ->
+                array.put(
+                    JSONObject()
+                        .put("id", conversation.id)
+                        .put("title", conversation.title)
+                        .put("updatedAt", conversation.updatedAt)
+                        .put("messages", conversation.messages.toJsonArray())
+                )
             }
             file.writeText(array.toString())
+        }
+    }
+
+    private fun List<ChatMessage>.toJsonArray(): JSONArray {
+        val array = JSONArray()
+        filter { !it.isStreaming }.forEach { message ->
+            val obj = JSONObject()
+                .put("role", if (message.role == MessageRole.USER) "user" else "assistant")
+                .put("content", message.content)
+            message.processing?.let { obj.put("processing", it.toJson()) }
+            array.put(obj)
+        }
+        return array
+    }
+
+    private fun JSONArray?.toMessages(): List<ChatMessage> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (index in 0 until length()) {
+                val obj = optJSONObject(index) ?: continue
+                val role = if (obj.optString("role") == "user") MessageRole.USER else MessageRole.ASSISTANT
+                add(
+                    ChatMessage(
+                        role = role,
+                        content = obj.optString("content"),
+                        processing = obj.optJSONObject("processing")?.toProcessingDetails()
+                    )
+                )
+            }
         }
     }
 
@@ -64,8 +110,4 @@ class ConversationStore(context: Context) {
         finishReason = if (has("finishReason")) optString("finishReason") else null,
         outcome = optString("outcome")
     )
-
-    fun clear() {
-        runCatching { if (file.exists()) file.delete() }
-    }
 }

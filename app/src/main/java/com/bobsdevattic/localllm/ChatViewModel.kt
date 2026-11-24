@@ -10,6 +10,7 @@ import com.bobsdevattic.localllm.data.LmStudioClient
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ModelInfo
 import com.bobsdevattic.localllm.data.ProcessingDetails
+import com.bobsdevattic.localllm.data.SavedConversation
 import com.bobsdevattic.localllm.data.UpdateChecker
 import com.bobsdevattic.localllm.data.UpdateInfo
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,14 @@ private const val REPO = "Bobs-Dev-Attic/LocalLLM"
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+enum class ColorTheme(val label: String) {
+    DEFAULT("Default"),
+    BLUE("Blue"),
+    RAINBOW("Rainbow"),
+    HIGH_CONTRAST("High Contrast"),
+    MONOCHROME("Monochrome")
+}
+
 enum class FontSize(val label: String, val scale: Float) {
     SMALLEST("Smallest", 0.7f),
     SMALL("Small", 0.85f),
@@ -32,17 +41,21 @@ enum class FontSize(val label: String, val scale: Float) {
     LARGEST("Largest", 1.45f)
 }
 
+data class ConversationSummary(val id: String, val title: String, val updatedAt: Long)
+
 data class ChatUiState(
     val endpoint: String = "http://192.168.11.225:1234/v1",
     val endpointHistory: List<String> = emptyList(),
     val model: String = "",
     val models: List<ModelInfo> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
+    val conversations: List<ConversationSummary> = emptyList(),
     val draft: String = "",
     val isConnecting: Boolean = false,
     val isGenerating: Boolean = false,
     val connectionLabel: String = "Not connected",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val colorTheme: ColorTheme = ColorTheme.DEFAULT,
     val fontSize: FontSize = FontSize.SMALL,
     val appVersion: String = "",
     val isCheckingUpdate: Boolean = false,
@@ -67,6 +80,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             model = preferences.getString("model", "")!!,
             themeMode = runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "SYSTEM") }
                 .getOrDefault(ThemeMode.SYSTEM),
+            colorTheme = runCatching { ColorTheme.valueOf(preferences.getString("color_theme", null) ?: "DEFAULT") }
+                .getOrDefault(ColorTheme.DEFAULT),
             fontSize = runCatching { FontSize.valueOf(preferences.getString("font_size", null) ?: "SMALL") }
                 .getOrDefault(FontSize.SMALL),
             appVersion = currentVersion
@@ -75,16 +90,62 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val state = _state.asStateFlow()
     private var generationJob: Job? = null
 
+    private var allConversations: MutableList<SavedConversation> = conversationStore.loadAll().toMutableList()
+    private var currentId: String = allConversations.firstOrNull()?.id ?: UUID.randomUUID().toString()
+
     init {
-        val saved = conversationStore.load()
-        if (saved.isNotEmpty()) {
-            _state.update { it.copy(messages = saved) }
+        allConversations.firstOrNull()?.let { current ->
+            _state.update { it.copy(messages = current.messages) }
         }
+        refreshConversationList()
         checkForUpdates(silent = true)
     }
 
+    private fun refreshConversationList() {
+        _state.update {
+            it.copy(conversations = allConversations
+                .sortedByDescending { c -> c.updatedAt }
+                .map { c -> ConversationSummary(c.id, c.title, c.updatedAt) })
+        }
+    }
+
+    private fun conversationTitle(messages: List<ChatMessage>): String =
+        messages.firstOrNull { it.role == MessageRole.USER }
+            ?.content?.trim()?.take(48)?.ifBlank { null } ?: "New conversation"
+
     private fun persistConversation(messages: List<ChatMessage>) {
-        viewModelScope.launch(Dispatchers.IO) { conversationStore.save(messages) }
+        val saved = messages.filter { !it.isStreaming }
+        if (saved.isEmpty()) {
+            allConversations.removeAll { it.id == currentId }
+        } else {
+            val conversation = SavedConversation(
+                id = currentId,
+                title = conversationTitle(saved),
+                updatedAt = System.currentTimeMillis(),
+                messages = saved
+            )
+            val index = allConversations.indexOfFirst { it.id == currentId }
+            if (index >= 0) allConversations[index] = conversation else allConversations.add(conversation)
+        }
+        val snapshot = allConversations.toList()
+        viewModelScope.launch(Dispatchers.IO) { conversationStore.saveAll(snapshot) }
+        refreshConversationList()
+    }
+
+    fun loadConversation(id: String) {
+        if (state.value.isGenerating) stop()
+        persistConversation(state.value.messages)
+        val conversation = allConversations.firstOrNull { it.id == id } ?: return
+        currentId = conversation.id
+        _state.update { it.copy(messages = conversation.messages, draft = "", error = null) }
+    }
+
+    fun clearHistory() {
+        if (state.value.isGenerating) stop()
+        allConversations.clear()
+        currentId = UUID.randomUUID().toString()
+        _state.update { it.copy(messages = emptyList(), conversations = emptyList(), draft = "", error = null) }
+        viewModelScope.launch(Dispatchers.IO) { conversationStore.saveAll(emptyList()) }
     }
 
     fun checkForUpdates(silent: Boolean = false) {
@@ -119,6 +180,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         preferences.edit().putString("theme_mode", mode.name).apply()
     }
 
+    fun setColorTheme(theme: ColorTheme) {
+        _state.update { it.copy(colorTheme = theme) }
+        preferences.edit().putString("color_theme", theme.name).apply()
+    }
+
     fun setFontSize(size: FontSize) {
         _state.update { it.copy(fontSize = size) }
         preferences.edit().putString("font_size", size.name).apply()
@@ -148,8 +214,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun newChat() {
         if (state.value.isGenerating) stop()
+        persistConversation(state.value.messages)
+        currentId = UUID.randomUUID().toString()
         _state.update { it.copy(messages = emptyList(), draft = "", error = null) }
-        conversationStore.clear()
     }
 
     fun connect() {

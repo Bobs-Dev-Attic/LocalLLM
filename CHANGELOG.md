@@ -1,0 +1,71 @@
+# Changelog
+
+All notable changes to LocalLLM. This file is the online changelog; each release
+also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
+with its downloadable APK.
+
+## 0.1.9
+
+- Conversation history: save multiple conversations and reopen old ones from a
+  history icon in the top bar; clear all history from there.
+- Font size is now a slider (Smallest → Largest).
+- New color themes: Blue, Rainbow, High Contrast, Monochrome (in addition to the
+  default), each with light and dark variants.
+- Animated diagonal gradient background while the model is generating, tinted to
+  the current theme.
+- Updates section: "Check for updates" is now a refresh icon beside the Updates
+  header, with a link to this changelog.
+- Rounded the message composer and reduced text-field padding for a tighter form.
+
+## 0.1.8
+
+- Processing details (timings, token counts, finish reason) persist with the
+  conversation and are restored on reload.
+- Tighter padding and margins at the Small and Smallest font sizes.
+
+## 0.1.7
+
+- Markdown rendering in finished assistant replies (headings, bold/italic, inline
+  code, code blocks, lists, quotes, rules, links).
+- The current conversation is saved and restored on next launch.
+- Font sizes: default Small, with Smallest and Largest added.
+- Model selection is an editable dropdown of discovered models with a Refresh icon.
+- API base URL history dropdown.
+- Condensed Settings dialog.
+
+## 0.1.6
+
+- Processing details moved to an info icon beside the duration/tokens summary.
+- Live elapsed timer while the model is generating.
+- Auto-scroll to the newest content as replies stream in.
+- Token summary omitted when the server reports no counts.
+
+## 0.1.5
+
+- Default LM Studio base URL preset to `http://192.168.11.225:1234/v1`.
+
+## 0.1.4
+
+- App version shown next to the title in the top bar.
+
+## 0.1.3
+
+- Per-reply duration and token summary shown under each answer.
+- Fixed the Settings dialog not opening at the Small font size.
+
+## 0.1.2
+
+- All builds signed with a shared debug key so updates install in place.
+
+## 0.1.1
+
+- Navigation-bar inset fix for the composer.
+- Persistent theme and font-size settings.
+- Loading indicator for Test & load models.
+- In-app update check against GitHub releases.
+
+## 0.1.0
+
+- First Android foundation: LM Studio connection, model discovery, streaming
+  chat, stop generation, per-response processing details, Gradle wrapper, and an
+  automated release workflow.
