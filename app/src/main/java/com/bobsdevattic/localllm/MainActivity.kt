@@ -261,6 +261,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
 
     if (showSettings) {
         var modelMenuExpanded by remember { mutableStateOf(false) }
+        var endpointMenuExpanded by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showSettings = false },
             title = { Text("Settings") },
@@ -269,15 +270,44 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    OutlinedTextField(
-                        value = state.endpoint,
-                        onValueChange = vm::updateEndpoint,
-                        label = { Text("API base URL") },
-                        placeholder = { Text("http://192.168.11.225:1234/v1") },
-                        singleLine = true,
-                        enabled = !state.isConnecting,
+                    ExposedDropdownMenuBox(
+                        expanded = endpointMenuExpanded && state.endpointHistory.isNotEmpty(),
+                        onExpandedChange = {
+                            if (state.endpointHistory.isNotEmpty()) endpointMenuExpanded = !endpointMenuExpanded
+                        },
                         modifier = Modifier.fillMaxWidth()
-                    )
+                    ) {
+                        OutlinedTextField(
+                            value = state.endpoint,
+                            onValueChange = vm::updateEndpoint,
+                            label = { Text("API base URL") },
+                            placeholder = { Text("http://192.168.11.225:1234/v1") },
+                            singleLine = true,
+                            enabled = !state.isConnecting,
+                            trailingIcon = {
+                                if (state.endpointHistory.isNotEmpty()) {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = endpointMenuExpanded)
+                                }
+                            },
+                            modifier = Modifier
+                                .menuAnchor(MenuAnchorType.PrimaryEditable)
+                                .fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = endpointMenuExpanded && state.endpointHistory.isNotEmpty(),
+                            onDismissRequest = { endpointMenuExpanded = false }
+                        ) {
+                            state.endpointHistory.forEach { url ->
+                                DropdownMenuItem(
+                                    text = { Text(url) },
+                                    onClick = {
+                                        vm.updateEndpoint(url)
+                                        endpointMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ExposedDropdownMenuBox(
                             expanded = modelMenuExpanded && state.models.isNotEmpty(),

@@ -34,6 +34,7 @@ enum class FontSize(val label: String, val scale: Float) {
 
 data class ChatUiState(
     val endpoint: String = "http://192.168.11.225:1234/v1",
+    val endpointHistory: List<String> = emptyList(),
     val model: String = "",
     val models: List<ModelInfo> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
@@ -61,6 +62,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(
         ChatUiState(
             endpoint = preferences.getString("endpoint", "http://192.168.11.225:1234/v1")!!,
+            endpointHistory = preferences.getString("endpoint_history", null)
+                ?.split("\n")?.filter { it.isNotBlank() } ?: emptyList(),
             model = preferences.getString("model", "")!!,
             themeMode = runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "SYSTEM") }
                 .getOrDefault(ThemeMode.SYSTEM),
@@ -126,6 +129,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         preferences.edit().putString("endpoint", value).apply()
     }
 
+    private fun recordEndpoint(url: String) {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return
+        _state.update {
+            val updated = (listOf(trimmed) + it.endpointHistory.filter { existing -> existing != trimmed }).take(8)
+            preferences.edit().putString("endpoint_history", updated.joinToString("\n")).apply()
+            it.copy(endpointHistory = updated)
+        }
+    }
+
     fun updateModel(value: String) {
         _state.update { it.copy(model = value) }
         preferences.edit().putString("model", value).apply()
@@ -157,6 +170,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     preferences.edit().putString("model", state.value.model).apply()
+                    recordEndpoint(endpoint)
                 }
                 .onFailure { error ->
                     _state.update {
