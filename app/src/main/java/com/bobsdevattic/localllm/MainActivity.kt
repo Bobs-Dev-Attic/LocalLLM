@@ -1,5 +1,8 @@
 package com.bobsdevattic.localllm
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -58,6 +61,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
@@ -66,6 +70,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ProcessingDetails
+import com.bobsdevattic.localllm.data.UpdateInfo
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -140,6 +145,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            state.update?.let { info -> UpdateBanner(info, onDismiss = vm::dismissUpdate) }
             if (state.messages.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
                     Column(
@@ -259,6 +265,40 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         label = { it.label },
                         onSelect = vm::setFontSize
                     )
+
+                    HorizontalDivider()
+                    Text("Updates", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                    Text(
+                        "Installed version v${state.appVersion}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        onClick = { vm.checkForUpdates() },
+                        enabled = !state.isCheckingUpdate
+                    ) {
+                        if (state.isCheckingUpdate) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Checking…")
+                        } else {
+                            Text("Check for updates")
+                        }
+                    }
+                    state.update?.let { info ->
+                        val context = LocalContext.current
+                        Text(
+                            "Update available: v${info.versionName}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Button(onClick = { openUrl(context, info.apkUrl ?: info.releaseUrl) }) {
+                            Text("Download v${info.versionName}")
+                        }
+                    }
+                    state.updateMessage?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             },
             confirmButton = {
@@ -278,6 +318,39 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
             },
             dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Close") } }
         )
+    }
+}
+
+@Composable
+private fun UpdateBanner(info: UpdateInfo, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    Surface(color = MaterialTheme.colorScheme.primaryContainer) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Update available",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    "Version ${info.versionName} is ready to download.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            TextButton(onClick = { openUrl(context, info.apkUrl ?: info.releaseUrl) }) { Text("Download") }
+            TextButton(onClick = onDismiss) { Text("Later") }
+        }
+    }
+}
+
+private fun openUrl(context: Context, url: String) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 }
 

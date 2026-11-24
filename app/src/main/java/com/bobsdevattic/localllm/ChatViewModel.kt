@@ -9,12 +9,16 @@ import com.bobsdevattic.localllm.data.LmStudioClient
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ModelInfo
 import com.bobsdevattic.localllm.data.ProcessingDetails
+import com.bobsdevattic.localllm.data.UpdateChecker
+import com.bobsdevattic.localllm.data.UpdateInfo
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+private const val REPO = "Bobs-Dev-Attic/LocalLLM"
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
@@ -35,12 +39,20 @@ data class ChatUiState(
     val connectionLabel: String = "Not connected",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontSize: FontSize = FontSize.MEDIUM,
+    val appVersion: String = "",
+    val isCheckingUpdate: Boolean = false,
+    val update: UpdateInfo? = null,
+    val updateMessage: String? = null,
     val error: String? = null
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val client = LmStudioClient()
+    private val updateChecker = UpdateChecker()
     private val preferences = application.getSharedPreferences("local_llm_settings", 0)
+    private val currentVersion: String = runCatching {
+        application.packageManager.getPackageInfo(application.packageName, 0).versionName
+    }.getOrNull() ?: "0.0.0"
     private val _state = MutableStateFlow(
         ChatUiState(
             endpoint = preferences.getString("endpoint", "http://192.168.1.10:1234/v1")!!,
@@ -48,11 +60,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             themeMode = runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "SYSTEM") }
                 .getOrDefault(ThemeMode.SYSTEM),
             fontSize = runCatching { FontSize.valueOf(preferences.getString("font_size", null) ?: "MEDIUM") }
-                .getOrDefault(FontSize.MEDIUM)
+                .getOrDefault(FontSize.MEDIUM),
+            appVersion = currentVersion
         )
     )
     val state = _state.asStateFlow()
     private var generationJob: Job? = null
+
+    init {
+        checkForUpdates(silent = true)
+    }
+
+    fun checkForUpdates(silent: Boolean = false) {
+        if (state.value.isCheckingUpdate) return
+        viewModelScope.launch {
+            _state.update { it.copy(isCheckingUpdate = true, updateMessage = null) }
+            runCatching { updateChecker.check(REPO, currentVersion) }
+                .onSuccess { info ->
+                    _state.update {
+                        it.copy(
+                            isCheckingUpdate = false,
+                            update = info,
+                            updateMessage = if (info == null && !silent) "You're on the latest version (v$currentVersion)." else null
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            isCheckingUpdate = false,
+                            updateMessage = if (silent) null else (error.message ?: "Couldn't check for updates.")
+                        )
+                    }
+                }
+        }
+    }
+
+    fun dismissUpdate() = _state.update { it.copy(update = null, updateMessage = null) }
 
     fun setThemeMode(mode: ThemeMode) {
         _state.update { it.copy(themeMode = mode) }
