@@ -4,6 +4,13 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.13
+
+- Color themes now set matching container colors, so message bubbles and chips
+  line up with each theme's accent (Blue, Rainbow, Monochrome).
+- Made the animated generating-background gradient clearly visible (stronger and
+  with distinct bands).
+
 ## 0.1.12
 
 - Conversation history titles now summarize all questions in the conversation,
