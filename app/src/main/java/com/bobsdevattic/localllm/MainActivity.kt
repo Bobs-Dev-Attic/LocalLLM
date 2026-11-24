@@ -50,10 +50,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,10 +62,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.MessageRole
@@ -99,11 +99,30 @@ private fun LocalLlmTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val density = LocalDensity.current
-    val scaledDensity = Density(density.density, density.fontScale * fontScale)
-    MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
-        CompositionLocalProvider(LocalDensity provides scaledDensity, content = content)
-    }
+    // Scale the Material typography rather than overriding LocalDensity: a modified
+    // density leaks into AlertDialog sub-compositions and can stop them rendering.
+    // MaterialTheme provides bodyLarge as the default text style, so plain Text()
+    // scales too.
+    MaterialTheme(
+        colorScheme = if (dark) darkColorScheme() else lightColorScheme(),
+        typography = Typography().scaled(fontScale),
+        content = content
+    )
+}
+
+private fun Typography.scaled(scale: Float): Typography {
+    if (scale == 1f) return this
+    fun TextStyle.s(): TextStyle = copy(
+        fontSize = if (fontSize.isSp) fontSize * scale else fontSize,
+        lineHeight = if (lineHeight.isSp) lineHeight * scale else lineHeight
+    )
+    return copy(
+        displayLarge = displayLarge.s(), displayMedium = displayMedium.s(), displaySmall = displaySmall.s(),
+        headlineLarge = headlineLarge.s(), headlineMedium = headlineMedium.s(), headlineSmall = headlineSmall.s(),
+        titleLarge = titleLarge.s(), titleMedium = titleMedium.s(), titleSmall = titleSmall.s(),
+        bodyLarge = bodyLarge.s(), bodyMedium = bodyMedium.s(), bodySmall = bodySmall.s(),
+        labelLarge = labelLarge.s(), labelMedium = labelMedium.s(), labelSmall = labelSmall.s()
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -410,8 +429,35 @@ private fun MessageBubble(message: ChatMessage) {
                 else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        if (!isUser && message.processing != null) ProcessingPanel(message.processing)
+        if (!isUser && message.processing != null) {
+            ProcessingSummary(message.processing)
+            ProcessingPanel(message.processing)
+        }
     }
+}
+
+@Composable
+private fun ProcessingSummary(details: ProcessingDetails) {
+    Text(
+        processingSummaryText(details),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 4.dp, top = 3.dp)
+    )
+}
+
+private fun processingSummaryText(details: ProcessingDetails): String {
+    val time = details.totalDurationMs.let { ms ->
+        if (ms < 1000) "$ms ms" else String.format(java.util.Locale.US, "%.1f s", ms / 1000.0)
+    }
+    val tokens = when {
+        details.promptTokens != null && details.completionTokens != null ->
+            "${details.promptTokens + details.completionTokens} tokens (${details.promptTokens}+${details.completionTokens})"
+        details.completionTokens != null -> "${details.completionTokens} tokens"
+        details.promptTokens != null -> "${details.promptTokens} prompt tokens"
+        else -> "tokens n/a"
+    }
+    return "$time · $tokens"
 }
 
 @Composable
