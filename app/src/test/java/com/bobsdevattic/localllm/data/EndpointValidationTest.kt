@@ -33,6 +33,10 @@ class EndpointValidationTest {
         assertFalse(isPrivateHttpHost("8.8.8.8"))
     }
 
+    @Test fun refusesHostnamesForPlainHttpToAvoidDnsRebinding() {
+        assertFalse(isPrivateHttpHost("lm-studio.local"))
+    }
+
     @Test fun allowsLoopbackForLocalDevelopment() {
         assertTrue(isPrivateHttpHost("127.0.0.1"))
     }
