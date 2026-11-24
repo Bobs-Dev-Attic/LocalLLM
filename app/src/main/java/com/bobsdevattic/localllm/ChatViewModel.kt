@@ -52,6 +52,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateDraft(value: String) = _state.update { it.copy(draft = value) }
 
+    fun newChat() {
+        if (state.value.isGenerating) stop()
+        _state.update { it.copy(messages = emptyList(), draft = "", error = null) }
+    }
+
     fun connect() {
         val endpoint = state.value.endpoint
         viewModelScope.launch {
@@ -72,7 +77,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     preferences.edit().putString("model", state.value.model).apply()
                 }
                 .onFailure { error ->
-                    _state.update { it.copy(isConnecting = false, connectionLabel = "Connection failed", error = error.message ?: "Unable to reach LM Studio.") }
+                    _state.update {
+                        it.copy(
+                            isConnecting = false,
+                            connectionLabel = "Connection failed",
+                            error = error.message ?: "Unable to reach LM Studio."
+                        )
+                    }
                 }
         }
     }
@@ -86,10 +97,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val requestId = UUID.randomUUID().toString()
-        val started = System.nanoTime()
-        val history = current.messages.filter { !it.isStreaming }
         val userMessage = ChatMessage(role = MessageRole.USER, content = prompt)
         val assistantMessage = ChatMessage(role = MessageRole.ASSISTANT, content = "", isStreaming = true)
+        val history = current.messages.filter { !it.isStreaming }
         _state.update {
             it.copy(
                 messages = it.messages + userMessage + assistantMessage,
@@ -99,6 +109,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         generationJob = viewModelScope.launch {
+            var requestStartedAtNs = System.nanoTime()
             var firstTokenMs: Long? = null
             var promptTokens: Int? = null
             var completionTokens: Int? = null
@@ -112,8 +123,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     requestId = requestId
                 ).collect { event ->
                     when (event) {
+                        ChatStreamEvent.Started -> requestStartedAtNs = System.nanoTime()
                         is ChatStreamEvent.Delta -> {
-                            if (firstTokenMs == null) firstTokenMs = (System.nanoTime() - started) / 1_000_000
+                            if (firstTokenMs == null) {
+                                firstTokenMs = (System.nanoTime() - requestStartedAtNs) / 1_000_000
+                            }
                             _state.update { state ->
                                 state.copy(messages = state.messages.map { message ->
                                     if (message.id == assistantMessage.id) message.copy(content = message.content + event.text) else message
@@ -134,7 +148,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 outcome = "Failed"
                 _state.update { it.copy(error = error.message ?: "Generation failed.") }
             } finally {
-                val duration = (System.nanoTime() - started) / 1_000_000
+                val duration = (System.nanoTime() - requestStartedAtNs) / 1_000_000
                 val details = ProcessingDetails(
                     requestId = requestId,
                     endpoint = current.endpoint,
