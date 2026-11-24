@@ -7,8 +7,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +43,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -43,6 +53,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -54,7 +65,9 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -71,6 +84,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +105,7 @@ import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ProcessingDetails
 import com.bobsdevattic.localllm.data.UpdateInfo
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,14 +118,51 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun LocalLlmRoot(vm: ChatViewModel = viewModel()) {
     val state by vm.state.collectAsState()
-    LocalLlmTheme(themeMode = state.themeMode, fontScale = state.fontSize.scale) {
+    LocalLlmTheme(
+        themeMode = state.themeMode,
+        colorTheme = state.colorTheme,
+        fontScale = state.fontSize.scale
+    ) {
         LocalLlmApp(vm, state)
     }
+}
+
+private fun colorSchemeFor(theme: ColorTheme, dark: Boolean): ColorScheme = when (theme) {
+    ColorTheme.DEFAULT -> if (dark) darkColorScheme() else lightColorScheme()
+    ColorTheme.BLUE -> if (dark) darkColorScheme(
+        primary = Color(0xFF8AB4F8), secondary = Color(0xFF9FC3FF), tertiary = Color(0xFF80CBC4)
+    ) else lightColorScheme(
+        primary = Color(0xFF1A73E8), secondary = Color(0xFF1565C0), tertiary = Color(0xFF00897B)
+    )
+    ColorTheme.RAINBOW -> if (dark) darkColorScheme(
+        primary = Color(0xFFFF80AB), secondary = Color(0xFF80D8FF), tertiary = Color(0xFFFFD180)
+    ) else lightColorScheme(
+        primary = Color(0xFFD81B60), secondary = Color(0xFF00ACC1), tertiary = Color(0xFFF57C00)
+    )
+    ColorTheme.HIGH_CONTRAST -> if (dark) darkColorScheme(
+        primary = Color.White, onPrimary = Color.Black,
+        background = Color.Black, onBackground = Color.White,
+        surface = Color.Black, onSurface = Color.White,
+        surfaceVariant = Color(0xFF1C1C1C), onSurfaceVariant = Color.White,
+        primaryContainer = Color.White, onPrimaryContainer = Color.Black
+    ) else lightColorScheme(
+        primary = Color.Black, onPrimary = Color.White,
+        background = Color.White, onBackground = Color.Black,
+        surface = Color.White, onSurface = Color.Black,
+        surfaceVariant = Color(0xFFEDEDED), onSurfaceVariant = Color.Black,
+        primaryContainer = Color.Black, onPrimaryContainer = Color.White
+    )
+    ColorTheme.MONOCHROME -> if (dark) darkColorScheme(
+        primary = Color(0xFFBDBDBD), secondary = Color(0xFF9E9E9E), tertiary = Color(0xFF757575)
+    ) else lightColorScheme(
+        primary = Color(0xFF424242), secondary = Color(0xFF616161), tertiary = Color(0xFF757575)
+    )
 }
 
 @Composable
 private fun LocalLlmTheme(
     themeMode: ThemeMode,
+    colorTheme: ColorTheme,
     fontScale: Float,
     content: @Composable () -> Unit
 ) {
@@ -115,7 +176,7 @@ private fun LocalLlmTheme(
     // MaterialTheme provides bodyLarge as the default text style, so plain Text()
     // scales too.
     MaterialTheme(
-        colorScheme = if (dark) darkColorScheme() else lightColorScheme(),
+        colorScheme = colorSchemeFor(colorTheme, dark),
         typography = Typography().scaled(fontScale),
         content = content
     )
@@ -140,6 +201,7 @@ private fun Typography.scaled(scale: Float): Typography {
 @Composable
 private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
     var showSettings by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     // Tighten chat spacing at the smaller font sizes.
@@ -196,6 +258,9 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showHistory = true }) {
+                        Icon(Icons.Default.History, contentDescription = "Conversation history")
+                    }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "Connection settings")
                     }
@@ -215,7 +280,11 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
             )
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            if (state.isGenerating) {
+                AnimatedDiagonalGradient(Modifier.matchParentSize())
+            }
+            Column(Modifier.fillMaxSize()) {
             state.update?.let { info -> UpdateBanner(info, onDismiss = vm::dismissUpdate) }
             if (state.messages.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
@@ -264,6 +333,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
+            }
         }
     }
 
@@ -292,6 +362,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                             placeholder = { Text("http://192.168.11.225:1234/v1") },
                             singleLine = true,
                             enabled = !state.isConnecting,
+                            shape = RoundedCornerShape(16.dp),
                             trailingIcon = {
                                 if (state.endpointHistory.isNotEmpty()) {
                                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = endpointMenuExpanded)
@@ -329,6 +400,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                                 onValueChange = vm::updateModel,
                                 label = { Text("Model") },
                                 singleLine = true,
+                                shape = RoundedCornerShape(16.dp),
                                 trailingIcon = {
                                     if (state.models.isNotEmpty()) {
                                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelMenuExpanded)
@@ -389,32 +461,49 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         label = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
                         onSelect = vm::setThemeMode
                     )
-                    Text("Font size", style = MaterialTheme.typography.labelMedium)
+                    Text("Color", style = MaterialTheme.typography.labelMedium)
                     ChoiceChips(
-                        options = FontSize.entries,
-                        selected = state.fontSize,
+                        options = ColorTheme.entries,
+                        selected = state.colorTheme,
                         label = { it.label },
-                        onSelect = vm::setFontSize
+                        onSelect = vm::setColorTheme
+                    )
+                    Text("Font size: ${state.fontSize.label}", style = MaterialTheme.typography.labelMedium)
+                    Slider(
+                        value = state.fontSize.ordinal.toFloat(),
+                        onValueChange = {
+                            vm.setFontSize(FontSize.entries[it.roundToInt().coerceIn(0, FontSize.entries.size - 1)])
+                        },
+                        valueRange = 0f..(FontSize.entries.size - 1).toFloat(),
+                        steps = FontSize.entries.size - 2
                     )
 
                     HorizontalDivider()
-                    Text("Updates", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Updates",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { vm.checkForUpdates() }, enabled = !state.isCheckingUpdate) {
+                            if (state.isCheckingUpdate) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = "Check for updates")
+                            }
+                        }
+                    }
                     Text(
                         "Installed version v${state.appVersion}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    TextButton(
-                        onClick = { vm.checkForUpdates() },
-                        enabled = !state.isCheckingUpdate
-                    ) {
-                        if (state.isCheckingUpdate) {
-                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Checking…")
-                        } else {
-                            Text("Check for updates")
-                        }
+                    run {
+                        val context = LocalContext.current
+                        TextButton(onClick = {
+                            openUrl(context, "https://github.com/Bobs-Dev-Attic/LocalLLM/blob/main/CHANGELOG.md")
+                        }) { Text("View changelog") }
                     }
                     state.update?.let { info ->
                         val context = LocalContext.current
@@ -448,6 +537,15 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                 }
             },
             dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Close") } }
+        )
+    }
+
+    if (showHistory) {
+        HistoryDialog(
+            conversations = state.conversations,
+            onOpen = { vm.loadConversation(it); showHistory = false },
+            onClear = { vm.clearHistory(); showHistory = false },
+            onDismiss = { showHistory = false }
         )
     }
 }
@@ -501,12 +599,15 @@ private fun Composer(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.Bottom
         ) {
-            OutlinedTextField(
+            CompactOutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Message your model…") },
-                maxLines = 5
+                placeholder = "Message your model…",
+                singleLine = false,
+                maxLines = 5,
+                shape = RoundedCornerShape(24.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             )
             Spacer(Modifier.width(8.dp))
             IconButton(onClick = if (generating) onStop else onSend, enabled = generating || value.isNotBlank()) {
@@ -518,6 +619,131 @@ private fun Composer(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompactOutlinedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    singleLine: Boolean = true,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    placeholder: String? = null,
+    shape: Shape = OutlinedTextFieldDefaults.shape,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val colors = OutlinedTextFieldDefaults.colors()
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        enabled = enabled,
+        singleLine = singleLine,
+        maxLines = maxLines,
+        textStyle = LocalTextStyle.current.copy(color = LocalContentColor.current),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        interactionSource = interactionSource,
+        decorationBox = { innerTextField ->
+            OutlinedTextFieldDefaults.DecorationBox(
+                value = value,
+                innerTextField = innerTextField,
+                enabled = enabled,
+                singleLine = singleLine,
+                visualTransformation = VisualTransformation.None,
+                interactionSource = interactionSource,
+                placeholder = placeholder?.let { { Text(it) } },
+                contentPadding = contentPadding,
+                colors = colors,
+                container = {
+                    OutlinedTextFieldDefaults.Container(
+                        enabled = enabled,
+                        isError = false,
+                        interactionSource = interactionSource,
+                        colors = colors,
+                        shape = shape
+                    )
+                }
+            )
+        }
+    )
+}
+
+@Composable
+private fun AnimatedDiagonalGradient(modifier: Modifier) {
+    val transition = rememberInfiniteTransition(label = "background")
+    val shift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Restart),
+        label = "shift"
+    )
+    val c1 = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+    val c2 = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.16f)
+    val c3 = MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)
+    Canvas(modifier) {
+        val diagonal = size.width + size.height
+        val offset = shift * diagonal
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(c1, c2, c3, c1),
+                start = Offset(offset - diagonal, offset - diagonal),
+                end = Offset(offset, offset),
+                tileMode = TileMode.Mirror
+            )
+        )
+    }
+}
+
+@Composable
+private fun HistoryDialog(
+    conversations: List<ConversationSummary>,
+    onOpen: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Conversations") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (conversations.isEmpty()) {
+                    Text("No saved conversations yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    conversations.forEach { conversation ->
+                        TextButton(
+                            onClick = { onOpen(conversation.id) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(conversation.title, maxLines = 1)
+                                Text(
+                                    formatTimestamp(conversation.updatedAt),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onClear, enabled = conversations.isNotEmpty()) {
+                Text("Clear history")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
+}
+
+private fun formatTimestamp(ms: Long): String =
+    java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT)
+        .format(java.util.Date(ms))
 
 @Composable
 private fun MessageBubble(message: ChatMessage, contentPadding: Dp = 14.dp) {
