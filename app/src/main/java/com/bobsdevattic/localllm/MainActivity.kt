@@ -64,8 +64,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.isSp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.MessageRole
@@ -113,8 +113,8 @@ private fun LocalLlmTheme(
 private fun Typography.scaled(scale: Float): Typography {
     if (scale == 1f) return this
     fun TextStyle.s(): TextStyle = copy(
-        fontSize = if (fontSize.isSp) fontSize * scale else fontSize,
-        lineHeight = if (lineHeight.isSp) lineHeight * scale else lineHeight
+        fontSize = if (fontSize != TextUnit.Unspecified) fontSize * scale else fontSize,
+        lineHeight = if (lineHeight != TextUnit.Unspecified) lineHeight * scale else lineHeight
     )
     return copy(
         displayLarge = displayLarge.s(), displayMedium = displayMedium.s(), displaySmall = displaySmall.s(),
