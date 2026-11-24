@@ -31,6 +31,13 @@ Android device and open it to install (you will be prompted to allow installs
 from the source app). This is a debug build for personal use, not a Play Store
 release. See the install steps in the release notes.
 
+All releases from v0.1.2 onward are signed with a shared, committed debug key
+(`app/debug.keystore` — not a secret, not for production), so new versions
+install in place over older ones and the in-app update check can install them.
+Upgrading from v0.1.0 or v0.1.1, which were each signed with a different
+throwaway key, requires uninstalling the app once and installing the new APK
+fresh (an "App not installed" error on update is this signature change).
+
 ## Build
 
 The project includes a committed Gradle wrapper pinned to Gradle 8.13, so no

@@ -11,10 +11,14 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# Keystores and secrets (never commit)
+# Keystores and secrets (never commit a release/production keystore)
 *.jks
 *.keystore
 keystore.properties
+# Exception: the shared debug keystore is intentionally committed so every
+# build (local and CI) is signed with the same key. It is NOT a secret — it
+# uses the well-known Android debug password and must never sign a Play release.
+!app/debug.keystore
 
 # OS
 .DS_Store
