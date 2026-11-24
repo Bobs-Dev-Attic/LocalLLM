@@ -158,8 +158,9 @@ internal fun parseApiBaseUrl(raw: String): HttpUrl {
 }
 
 internal fun isPrivateHttpHost(host: String): Boolean = runCatching {
-    InetAddress.getAllByName(host).isNotEmpty() &&
-        InetAddress.getAllByName(host).all { it.isSiteLocalAddress || it.isLoopbackAddress || it.isLinkLocalAddress }
+    val addresses = InetAddress.getAllByName(host)
+    addresses.isNotEmpty() &&
+        addresses.all { it.isSiteLocalAddress || it.isLoopbackAddress || it.isLinkLocalAddress }
 }.getOrDefault(false)
 
 class ApiException(message: String) : Exception(message)
