@@ -4,6 +4,14 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.20
+
+- Settings: the Theme and Color pickers are now dropdown fields instead of chip
+  rows, so the longer list stays compact.
+- Added eight new color themes: Forest, Ocean, Sunset, Grape, Crimson, Rose,
+  Amber and Slate (each with light and dark variants), alongside the existing
+  Default, Blue, Rainbow, High Contrast and Monochrome.
+
 ## 0.1.19
 
 - The resubmit (replay) icon now sits inline, just left of each sent message,
