@@ -4,7 +4,7 @@ A local-first Android chat client for language models hosted by LM Studio on you
 
 ## Current status
 
-The first Android foundation is under active development on the `build/android-mvp` branch. The initial vertical slice includes:
+The first Android foundation has landed on `main` and is under active development. The initial vertical slice includes:
 
 - Native Android UI built with Kotlin and Jetpack Compose.
 - Configurable LM Studio OpenAI-compatible API base URL.
@@ -23,23 +23,27 @@ This is an early foundation, not a feature-complete release. Conversation persis
 - LM Studio running on a computer reachable from the Android device over the same trusted network.
 - A model loaded in LM Studio and its local server enabled.
 
+## Install a prebuilt APK
+
+Tagged releases publish a ready-to-sideload debug APK. Download the latest from
+the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases) onto an
+Android device and open it to install (you will be prompted to allow installs
+from the source app). This is a debug build for personal use, not a Play Store
+release. See the install steps in the release notes.
+
 ## Build
 
-From the repository root, use Android Studio to open the project, or install Gradle 8.13 and run:
+The project includes a committed Gradle wrapper pinned to Gradle 8.13, so no
+system Gradle install is required. From the repository root, open the project in
+Android Studio, or build from the command line with:
 
 ```bash
-gradle :app:assembleDebug
-gradle :app:testDebugUnitTest
-gradle :app:lintDebug
+./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest
+./gradlew :app:lintDebug
 ```
 
-To generate a standard Gradle wrapper for local use:
-
-```bash
-gradle wrapper --gradle-version 8.13
-```
-
-Then use `./gradlew` (or `gradlew.bat` on Windows) for subsequent builds.
+On Windows, use `gradlew.bat` instead of `./gradlew`.
 
 The debug APK is produced at `app/build/outputs/apk/debug/app-debug.apk`.
 
