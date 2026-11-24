@@ -2,6 +2,7 @@ package com.bobsdevattic.localllm.data
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -43,6 +44,7 @@ class LmStudioClient {
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun streamChat(
         endpoint: String,
         model: String,
