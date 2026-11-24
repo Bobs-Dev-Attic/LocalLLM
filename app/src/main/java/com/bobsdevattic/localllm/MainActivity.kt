@@ -29,8 +29,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,6 +50,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Close
@@ -74,7 +73,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MenuAnchorType
@@ -170,6 +168,158 @@ private fun colorSchemeFor(theme: ColorTheme, dark: Boolean): ColorScheme = when
         background = Color(0xFFEEF4FF), onBackground = Color(0xFF0E1A2B),
         surface = Color(0xFFF7FAFF), onSurface = Color(0xFF0E1A2B),
         surfaceVariant = Color(0xFFDCE6FF), onSurfaceVariant = Color(0xFF2B3A52)
+    )
+    ColorTheme.FOREST -> if (dark) darkColorScheme(
+        primary = Color(0xFF8BD199), onPrimary = Color(0xFF00390F),
+        primaryContainer = Color(0xFF2E7D32), onPrimaryContainer = Color(0xFFC8F7CC),
+        secondary = Color(0xFFA5D6A7), onSecondary = Color(0xFF00390F),
+        secondaryContainer = Color(0xFF1E3D24), onSecondaryContainer = Color(0xFFC8F7CC),
+        tertiary = Color(0xFFBCAAA4),
+        background = Color(0xFF0B130D), onBackground = Color(0xFFE2EFE4),
+        surface = Color(0xFF111C14), onSurface = Color(0xFFE2EFE4),
+        surfaceVariant = Color(0xFF1E2E22), onSurfaceVariant = Color(0xFFB7CBBB)
+    ) else lightColorScheme(
+        primary = Color(0xFF2E7D32), onPrimary = Color.White,
+        primaryContainer = Color(0xFFC8F7CC), onPrimaryContainer = Color(0xFF002106),
+        secondary = Color(0xFF43A047), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFD4F5D6), onSecondaryContainer = Color(0xFF002106),
+        tertiary = Color(0xFF6D4C41),
+        background = Color(0xFFEEF6EE), onBackground = Color(0xFF0E1B10),
+        surface = Color(0xFFF6FBF6), onSurface = Color(0xFF0E1B10),
+        surfaceVariant = Color(0xFFD7E8D8), onSurfaceVariant = Color(0xFF2C3E2F)
+    )
+    ColorTheme.OCEAN -> if (dark) darkColorScheme(
+        primary = Color(0xFF5CD6E0), onPrimary = Color(0xFF00363B),
+        primaryContainer = Color(0xFF00838F), onPrimaryContainer = Color(0xFFBDF4F9),
+        secondary = Color(0xFF80DEEA), onSecondary = Color(0xFF00363B),
+        secondaryContainer = Color(0xFF123A40), onSecondaryContainer = Color(0xFFBDF4F9),
+        tertiary = Color(0xFF9FB8FF),
+        background = Color(0xFF081315), onBackground = Color(0xFFDFEFF1),
+        surface = Color(0xFF0E1C1F), onSurface = Color(0xFFDFEFF1),
+        surfaceVariant = Color(0xFF172E32), onSurfaceVariant = Color(0xFFADC7CB)
+    ) else lightColorScheme(
+        primary = Color(0xFF00838F), onPrimary = Color.White,
+        primaryContainer = Color(0xFFBDF4F9), onPrimaryContainer = Color(0xFF001F23),
+        secondary = Color(0xFF0097A7), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFCDF2F6), onSecondaryContainer = Color(0xFF001F23),
+        tertiary = Color(0xFF3D5AFE),
+        background = Color(0xFFEBF7F8), onBackground = Color(0xFF07191B),
+        surface = Color(0xFFF4FBFC), onSurface = Color(0xFF07191B),
+        surfaceVariant = Color(0xFFCFE8EB), onSurfaceVariant = Color(0xFF23383B)
+    )
+    ColorTheme.SUNSET -> if (dark) darkColorScheme(
+        primary = Color(0xFFFFB68C), onPrimary = Color(0xFF4A1A00),
+        primaryContainer = Color(0xFFE64A19), onPrimaryContainer = Color(0xFFFFDBCB),
+        secondary = Color(0xFFFFCC80), onSecondary = Color(0xFF4A1A00),
+        secondaryContainer = Color(0xFF4A2A14), onSecondaryContainer = Color(0xFFFFDBCB),
+        tertiary = Color(0xFFF48FB1),
+        background = Color(0xFF160D08), onBackground = Color(0xFFF6E7DE),
+        surface = Color(0xFF1F130C), onSurface = Color(0xFFF6E7DE),
+        surfaceVariant = Color(0xFF33211A), onSurfaceVariant = Color(0xFFD9BCAE)
+    ) else lightColorScheme(
+        primary = Color(0xFFE64A19), onPrimary = Color.White,
+        primaryContainer = Color(0xFFFFDBCB), onPrimaryContainer = Color(0xFF3A0B00),
+        secondary = Color(0xFFF57C00), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFFFE0C2), onSecondaryContainer = Color(0xFF3A0B00),
+        tertiary = Color(0xFFC2185B),
+        background = Color(0xFFFFF2EC), onBackground = Color(0xFF2A1109),
+        surface = Color(0xFFFFF8F5), onSurface = Color(0xFF2A1109),
+        surfaceVariant = Color(0xFFFFDCC9), onSurfaceVariant = Color(0xFF5A392C)
+    )
+    ColorTheme.GRAPE -> if (dark) darkColorScheme(
+        primary = Color(0xFFD0A8FF), onPrimary = Color(0xFF3A0B6B),
+        primaryContainer = Color(0xFF6A1B9A), onPrimaryContainer = Color(0xFFEDDCFF),
+        secondary = Color(0xFFCFBCFF), onSecondary = Color(0xFF3A0B6B),
+        secondaryContainer = Color(0xFF2E2140), onSecondaryContainer = Color(0xFFEDDCFF),
+        tertiary = Color(0xFFF48FB1),
+        background = Color(0xFF110B16), onBackground = Color(0xFFEBE2F2),
+        surface = Color(0xFF181020), onSurface = Color(0xFFEBE2F2),
+        surfaceVariant = Color(0xFF281E33), onSurfaceVariant = Color(0xFFC8BAD6)
+    ) else lightColorScheme(
+        primary = Color(0xFF6A1B9A), onPrimary = Color.White,
+        primaryContainer = Color(0xFFEDDCFF), onPrimaryContainer = Color(0xFF270058),
+        secondary = Color(0xFF7E57C2), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFE7DDFF), onSecondaryContainer = Color(0xFF270058),
+        tertiary = Color(0xFFC2185B),
+        background = Color(0xFFF6F0FB), onBackground = Color(0xFF17101F),
+        surface = Color(0xFFFBF7FE), onSurface = Color(0xFF17101F),
+        surfaceVariant = Color(0xFFE6DAF2), onSurfaceVariant = Color(0xFF39304A)
+    )
+    ColorTheme.CRIMSON -> if (dark) darkColorScheme(
+        primary = Color(0xFFFF9AA0), onPrimary = Color(0xFF5F0012),
+        primaryContainer = Color(0xFFC62828), onPrimaryContainer = Color(0xFFFFDADB),
+        secondary = Color(0xFFFFB3B6), onSecondary = Color(0xFF5F0012),
+        secondaryContainer = Color(0xFF451A1D), onSecondaryContainer = Color(0xFFFFDADB),
+        tertiary = Color(0xFFFFB68C),
+        background = Color(0xFF150A0B), onBackground = Color(0xFFF5E0E1),
+        surface = Color(0xFF1E0F11), onSurface = Color(0xFFF5E0E1),
+        surfaceVariant = Color(0xFF331B1D), onSurfaceVariant = Color(0xFFD9B4B6)
+    ) else lightColorScheme(
+        primary = Color(0xFFC62828), onPrimary = Color.White,
+        primaryContainer = Color(0xFFFFDADB), onPrimaryContainer = Color(0xFF410006),
+        secondary = Color(0xFFE53935), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFFFDAD8), onSecondaryContainer = Color(0xFF410006),
+        tertiary = Color(0xFFE64A19),
+        background = Color(0xFFFFF1F1), onBackground = Color(0xFF29100F),
+        surface = Color(0xFFFFF8F7), onSurface = Color(0xFF29100F),
+        surfaceVariant = Color(0xFFFFDAD9), onSurfaceVariant = Color(0xFF5A3634)
+    )
+    ColorTheme.ROSE -> if (dark) darkColorScheme(
+        primary = Color(0xFFFFB0CC), onPrimary = Color(0xFF5E1133),
+        primaryContainer = Color(0xFFC2185B), onPrimaryContainer = Color(0xFFFFD9E4),
+        secondary = Color(0xFFFFC1D6), onSecondary = Color(0xFF5E1133),
+        secondaryContainer = Color(0xFF45202F), onSecondaryContainer = Color(0xFFFFD9E4),
+        tertiary = Color(0xFFCFBCFF),
+        background = Color(0xFF160A0F), onBackground = Color(0xFFF6DFE8),
+        surface = Color(0xFF1F1017), onSurface = Color(0xFFF6DFE8),
+        surfaceVariant = Color(0xFF341E28), onSurfaceVariant = Color(0xFFD9B4C2)
+    ) else lightColorScheme(
+        primary = Color(0xFFC2185B), onPrimary = Color.White,
+        primaryContainer = Color(0xFFFFD9E4), onPrimaryContainer = Color(0xFF3E0021),
+        secondary = Color(0xFFEC407A), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFFFD9E4), onSecondaryContainer = Color(0xFF3E0021),
+        tertiary = Color(0xFF7E57C2),
+        background = Color(0xFFFFF0F5), onBackground = Color(0xFF2A1019),
+        surface = Color(0xFFFFF7FA), onSurface = Color(0xFF2A1019),
+        surfaceVariant = Color(0xFFFFD9E6), onSurfaceVariant = Color(0xFF5A3645)
+    )
+    ColorTheme.AMBER -> if (dark) darkColorScheme(
+        primary = Color(0xFFFFD54F), onPrimary = Color(0xFF3F2E00),
+        primaryContainer = Color(0xFFB8860B), onPrimaryContainer = Color(0xFFFFECB3),
+        secondary = Color(0xFFFFE082), onSecondary = Color(0xFF3F2E00),
+        secondaryContainer = Color(0xFF3F3414), onSecondaryContainer = Color(0xFFFFECB3),
+        tertiary = Color(0xFFBCAAA4),
+        background = Color(0xFF141006), onBackground = Color(0xFFF3EAD6),
+        surface = Color(0xFF1C160A), onSurface = Color(0xFFF3EAD6),
+        surfaceVariant = Color(0xFF2E2614), onSurfaceVariant = Color(0xFFD6C9A8)
+    ) else lightColorScheme(
+        primary = Color(0xFF8D6E00), onPrimary = Color.White,
+        primaryContainer = Color(0xFFFFECB3), onPrimaryContainer = Color(0xFF2A2000),
+        secondary = Color(0xFFBF9000), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFFFEFC2), onSecondaryContainer = Color(0xFF2A2000),
+        tertiary = Color(0xFF6D4C41),
+        background = Color(0xFFFCF6E4), onBackground = Color(0xFF1E1A0C),
+        surface = Color(0xFFFFFBF0), onSurface = Color(0xFF1E1A0C),
+        surfaceVariant = Color(0xFFEDE2C4), onSurfaceVariant = Color(0xFF423A28)
+    )
+    ColorTheme.SLATE -> if (dark) darkColorScheme(
+        primary = Color(0xFFA8C0D8), onPrimary = Color(0xFF17293A),
+        primaryContainer = Color(0xFF37485A), onPrimaryContainer = Color(0xFFD4E3F2),
+        secondary = Color(0xFFB4C2D0), onSecondary = Color(0xFF17293A),
+        secondaryContainer = Color(0xFF2A3642), onSecondaryContainer = Color(0xFFD4E3F2),
+        tertiary = Color(0xFFA5B5A8),
+        background = Color(0xFF0D1116), onBackground = Color(0xFFE2E8EF),
+        surface = Color(0xFF141922), onSurface = Color(0xFFE2E8EF),
+        surfaceVariant = Color(0xFF222a34), onSurfaceVariant = Color(0xFFBAC4CF)
+    ) else lightColorScheme(
+        primary = Color(0xFF45586B), onPrimary = Color.White,
+        primaryContainer = Color(0xFFD4E3F2), onPrimaryContainer = Color(0xFF101D29),
+        secondary = Color(0xFF5A6B7C), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFDCE6F0), onSecondaryContainer = Color(0xFF101D29),
+        tertiary = Color(0xFF50705A),
+        background = Color(0xFFEFF2F6), onBackground = Color(0xFF131A21),
+        surface = Color(0xFFF7F9FC), onSurface = Color(0xFF131A21),
+        surfaceVariant = Color(0xFFDBE2EA), onSurfaceVariant = Color(0xFF3A434D)
     )
     ColorTheme.RAINBOW -> if (dark) darkColorScheme(
         primary = Color(0xFFFF80AB), onPrimary = Color(0xFF5A0022),
@@ -548,18 +698,18 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
 
                     HorizontalDivider()
                     Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                    Text("Theme", style = MaterialTheme.typography.labelMedium)
-                    ChoiceChips(
+                    ChoiceDropdown(
+                        label = "Theme",
                         options = ThemeMode.entries,
                         selected = state.themeMode,
-                        label = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
+                        optionLabel = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
                         onSelect = vm::setThemeMode
                     )
-                    Text("Color", style = MaterialTheme.typography.labelMedium)
-                    ChoiceChips(
+                    ChoiceDropdown(
+                        label = "Color",
                         options = ColorTheme.entries,
                         selected = state.colorTheme,
-                        label = { it.label },
+                        optionLabel = { it.label },
                         onSelect = vm::setColorTheme
                     )
                     Text("Font size: ${state.fontSize.label}", style = MaterialTheme.typography.labelMedium)
@@ -1113,21 +1263,51 @@ private fun processingSummaryText(details: ProcessingDetails): String {
     return if (tokens != null) "$time · $tokens" else time
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun <T> ChoiceChips(
+private fun <T> ChoiceDropdown(
+    label: String,
     options: List<T>,
     selected: T,
-    label: (T) -> String,
+    optionLabel: (T) -> String,
     onSelect: (T) -> Unit
 ) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { option ->
-            FilterChip(
-                selected = option == selected,
-                onClick = { onSelect(option) },
-                label = { Text(label(option)) }
-            )
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = optionLabel(selected),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    trailingIcon = {
+                        if (option == selected) {
+                            Icon(Icons.Default.Check, contentDescription = "Selected")
+                        }
+                    },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }

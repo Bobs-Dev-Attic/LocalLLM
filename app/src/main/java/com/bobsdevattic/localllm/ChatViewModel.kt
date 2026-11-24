@@ -31,6 +31,14 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class ColorTheme(val label: String) {
     DEFAULT("Default"),
     BLUE("Blue"),
+    FOREST("Forest"),
+    OCEAN("Ocean"),
+    SUNSET("Sunset"),
+    GRAPE("Grape"),
+    CRIMSON("Crimson"),
+    ROSE("Rose"),
+    AMBER("Amber"),
+    SLATE("Slate"),
     RAINBOW("Rainbow"),
     HIGH_CONTRAST("High Contrast"),
     MONOCHROME("Monochrome")
