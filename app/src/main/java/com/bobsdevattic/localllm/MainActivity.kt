@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
@@ -232,7 +232,7 @@ private fun Composer(
             Spacer(Modifier.width(8.dp))
             IconButton(onClick = if (generating) onStop else onSend, enabled = generating || value.isNotBlank()) {
                 Icon(
-                    if (generating) Icons.Default.Stop else Icons.Default.Send,
+                    if (generating) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send,
                     contentDescription = if (generating) "Stop generation" else "Send message"
                 )
             }
