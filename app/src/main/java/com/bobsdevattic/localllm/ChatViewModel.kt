@@ -5,12 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.ChatStreamEvent
+import com.bobsdevattic.localllm.data.ConversationStore
 import com.bobsdevattic.localllm.data.LmStudioClient
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ModelInfo
 import com.bobsdevattic.localllm.data.ProcessingDetails
 import com.bobsdevattic.localllm.data.UpdateChecker
 import com.bobsdevattic.localllm.data.UpdateInfo
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,9 +25,11 @@ private const val REPO = "Bobs-Dev-Attic/LocalLLM"
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 enum class FontSize(val label: String, val scale: Float) {
+    SMALLEST("Smallest", 0.7f),
     SMALL("Small", 0.85f),
     MEDIUM("Medium", 1.0f),
-    LARGE("Large", 1.2f)
+    LARGE("Large", 1.2f),
+    LARGEST("Largest", 1.45f)
 }
 
 data class ChatUiState(
@@ -38,7 +42,7 @@ data class ChatUiState(
     val isGenerating: Boolean = false,
     val connectionLabel: String = "Not connected",
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val fontSize: FontSize = FontSize.MEDIUM,
+    val fontSize: FontSize = FontSize.SMALL,
     val appVersion: String = "",
     val isCheckingUpdate: Boolean = false,
     val update: UpdateInfo? = null,
@@ -49,6 +53,7 @@ data class ChatUiState(
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val client = LmStudioClient()
     private val updateChecker = UpdateChecker()
+    private val conversationStore = ConversationStore(application)
     private val preferences = application.getSharedPreferences("local_llm_settings", 0)
     private val currentVersion: String = runCatching {
         application.packageManager.getPackageInfo(application.packageName, 0).versionName
@@ -59,8 +64,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             model = preferences.getString("model", "")!!,
             themeMode = runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "SYSTEM") }
                 .getOrDefault(ThemeMode.SYSTEM),
-            fontSize = runCatching { FontSize.valueOf(preferences.getString("font_size", null) ?: "MEDIUM") }
-                .getOrDefault(FontSize.MEDIUM),
+            fontSize = runCatching { FontSize.valueOf(preferences.getString("font_size", null) ?: "SMALL") }
+                .getOrDefault(FontSize.SMALL),
             appVersion = currentVersion
         )
     )
@@ -68,7 +73,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var generationJob: Job? = null
 
     init {
+        val saved = conversationStore.load()
+        if (saved.isNotEmpty()) {
+            _state.update { it.copy(messages = saved) }
+        }
         checkForUpdates(silent = true)
+    }
+
+    private fun persistConversation(messages: List<ChatMessage>) {
+        viewModelScope.launch(Dispatchers.IO) { conversationStore.save(messages) }
     }
 
     fun checkForUpdates(silent: Boolean = false) {
@@ -123,6 +136,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun newChat() {
         if (state.value.isGenerating) stop()
         _state.update { it.copy(messages = emptyList(), draft = "", error = null) }
+        conversationStore.clear()
     }
 
     fun connect() {
@@ -176,6 +190,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 error = null
             )
         }
+        persistConversation(state.value.messages)
         generationJob = viewModelScope.launch {
             var requestStartedAtNs = System.nanoTime()
             var firstTokenMs: Long? = null
@@ -236,6 +251,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     )
                 }
+                persistConversation(state.value.messages)
             }
         }
     }

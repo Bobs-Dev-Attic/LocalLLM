@@ -12,6 +12,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Info
@@ -40,10 +43,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -70,6 +77,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mikepenz.markdown.m3.Markdown
 import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ProcessingDetails
@@ -253,13 +261,14 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
     }
 
     if (showSettings) {
+        var modelMenuExpanded by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showSettings = false },
             title = { Text("Settings") },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     OutlinedTextField(
                         value = state.endpoint,
@@ -270,37 +279,62 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         enabled = !state.isConnecting,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = state.model,
-                        onValueChange = vm::updateModel,
-                        label = { Text("Model ID") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (state.isConnecting) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(10.dp))
-                            Text("Testing connection & loading models…")
-                        }
-                    }
-                    if (state.models.isNotEmpty()) {
-                        if (!state.isConnecting) {
-                            Text(
-                                "Loaded ${state.models.size} model${if (state.models.size == 1) "" else "s"}.",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ExposedDropdownMenuBox(
+                            expanded = modelMenuExpanded && state.models.isNotEmpty(),
+                            onExpandedChange = {
+                                if (state.models.isNotEmpty()) modelMenuExpanded = !modelMenuExpanded
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = state.model,
+                                onValueChange = vm::updateModel,
+                                label = { Text("Model") },
+                                singleLine = true,
+                                trailingIcon = {
+                                    if (state.models.isNotEmpty()) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelMenuExpanded)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .menuAnchor(MenuAnchorType.PrimaryEditable)
+                                    .fillMaxWidth()
                             )
-                        }
-                        Text("Available models", style = MaterialTheme.typography.labelMedium)
-                        state.models.take(6).forEach { model ->
-                            TextButton(onClick = { vm.updateModel(model.id) }) {
-                                Text(if (model.id == state.model) "✓  ${model.id}" else model.id)
+                            ExposedDropdownMenu(
+                                expanded = modelMenuExpanded && state.models.isNotEmpty(),
+                                onDismissRequest = { modelMenuExpanded = false }
+                            ) {
+                                state.models.forEach { model ->
+                                    DropdownMenuItem(
+                                        text = { Text(model.id) },
+                                        onClick = {
+                                            vm.updateModel(model.id)
+                                            modelMenuExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
-                        if (state.models.size > 6) {
-                            Text("+ ${state.models.size - 6} more models; enter an ID manually.", style = MaterialTheme.typography.bodySmall)
+                        IconButton(onClick = vm::connect, enabled = !state.isConnecting) {
+                            if (state.isConnecting) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = "Reload models")
+                            }
                         }
+                    }
+                    if (state.isConnecting) {
+                        Text(
+                            "Testing connection & loading models…",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else if (state.models.isNotEmpty()) {
+                        Text(
+                            "Loaded ${state.models.size} model${if (state.models.size == 1) "" else "s"}.",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                     Text(
                         "Use the server's LAN address and port from LM Studio. HTTP is accepted only for private-network addresses.",
@@ -463,12 +497,20 @@ private fun MessageBubble(message: ChatMessage) {
             ),
             modifier = Modifier.fillMaxWidth(if (isUser) 0.88f else 1f)
         ) {
-            Text(
-                message.content.ifEmpty { if (message.isStreaming) " " else "(No text returned)" },
-                modifier = Modifier.padding(14.dp),
-                color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (!isUser && !message.isStreaming && message.content.isNotEmpty()) {
+                // Render the finished assistant reply as Markdown (Material3-themed).
+                Markdown(
+                    content = message.content,
+                    modifier = Modifier.padding(14.dp)
+                )
+            } else {
+                Text(
+                    message.content.ifEmpty { if (message.isStreaming) " " else "(No text returned)" },
+                    modifier = Modifier.padding(14.dp),
+                    color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         if (!isUser && message.processing != null) {
             ProcessingInfo(message.processing)
@@ -535,7 +577,7 @@ private fun processingSummaryText(details: ProcessingDetails): String {
     return if (tokens != null) "$time · $tokens" else time
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun <T> ChoiceChips(
     options: List<T>,
@@ -543,7 +585,7 @@ private fun <T> ChoiceChips(
     label: (T) -> String,
     onSelect: (T) -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { option ->
             FilterChip(
                 selected = option == selected,
