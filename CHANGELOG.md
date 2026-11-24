@@ -4,6 +4,15 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.12
+
+- Conversation history titles now summarize all questions in the conversation,
+  not just the first.
+- Connection status icon (connected/disconnected) next to the status label in
+  the title.
+- Response actions: copy the reply, a "More detail" button that asks the model
+  to expand, and a Sources list of any links in the reply.
+
 ## 0.1.11
 
 - Image input: attach photos to a message (Android photo picker) and send them to

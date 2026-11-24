@@ -50,7 +50,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
@@ -98,6 +101,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.LocalContentColor
@@ -267,11 +272,24 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                                 )
                             }
                         }
-                        Text(
-                            state.connectionLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val connected = state.connectionLabel.startsWith("Connected")
+                            Icon(
+                                if (connected) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                                contentDescription = if (connected) "Connected" else "Disconnected",
+                                modifier = Modifier.size(14.dp),
+                                tint = if (connected) Color(0xFF2E9E4F)
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                state.connectionLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -335,7 +353,9 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = listHPadding, vertical = listVPadding),
                     verticalArrangement = Arrangement.spacedBy(listSpacing)
                 ) {
-                    items(state.messages, key = { it.id }) { message -> MessageBubble(message, bubblePadding) }
+                    items(state.messages, key = { it.id }) { message ->
+                        MessageBubble(message, bubblePadding, onMoreDetail = vm::moreDetail)
+                    }
                     if (state.isGenerating) {
                         item {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -822,7 +842,11 @@ private fun formatTimestamp(ms: Long): String =
         .format(java.util.Date(ms))
 
 @Composable
-private fun MessageBubble(message: ChatMessage, contentPadding: Dp = 14.dp) {
+private fun MessageBubble(
+    message: ChatMessage,
+    contentPadding: Dp = 14.dp,
+    onMoreDetail: () -> Unit = {}
+) {
     val isUser = message.role == MessageRole.USER
     Column(
         Modifier.fillMaxWidth(),
@@ -857,8 +881,57 @@ private fun MessageBubble(message: ChatMessage, contentPadding: Dp = 14.dp) {
                 }
             }
         }
+        if (!isUser && !message.isStreaming && message.content.isNotEmpty()) {
+            MessageActions(message.content, onMoreDetail)
+        }
         if (!isUser && message.processing != null) {
             ProcessingInfo(message.processing)
+        }
+    }
+}
+
+private val sourceUrlRegex = Regex("https?://[^\\s)\\]<>\"']+")
+
+private fun extractSources(content: String): List<String> =
+    sourceUrlRegex.findAll(content)
+        .map { it.value.trimEnd('.', ',', ';', ':', ')', ']', '}') }
+        .distinct()
+        .toList()
+
+@Composable
+private fun MessageActions(content: String, onMoreDetail: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val sources = remember(content) { extractSources(content) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { clipboard.setText(AnnotatedString(content)) }, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Default.ContentCopy,
+                    contentDescription = "Copy response",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            TextButton(onClick = onMoreDetail) { Text("More detail") }
+        }
+        if (sources.isNotEmpty()) {
+            Text(
+                "Sources",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+            sources.forEach { url ->
+                Text(
+                    url,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(start = 4.dp, top = 1.dp)
+                        .clickable { openUrl(context, url) }
+                )
+            }
         }
     }
 }

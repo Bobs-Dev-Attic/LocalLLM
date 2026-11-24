@@ -113,9 +113,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun conversationTitle(messages: List<ChatMessage>): String =
-        messages.firstOrNull { it.role == MessageRole.USER }
-            ?.content?.trim()?.take(48)?.ifBlank { null } ?: "New conversation"
+    private fun conversationTitle(messages: List<ChatMessage>): String {
+        val questions = messages
+            .filter { it.role == MessageRole.USER }
+            .map { it.content.trim().replace(Regex("\\s+"), " ") }
+            .filter { it.isNotEmpty() }
+        if (questions.isEmpty()) return "New conversation"
+        val joined = questions.joinToString(" · ")
+        return if (joined.length > 100) joined.take(100).trimEnd() + "…" else joined
+    }
 
     private fun persistConversation(messages: List<ChatMessage>) {
         val saved = messages.filter { !it.isStreaming }
@@ -356,6 +362,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 persistConversation(state.value.messages)
             }
         }
+    }
+
+    fun moreDetail() {
+        if (state.value.isGenerating || state.value.model.isBlank()) return
+        _state.update { it.copy(draft = "Please expand on your previous answer with more detail.") }
+        send()
     }
 
     fun stop() {
