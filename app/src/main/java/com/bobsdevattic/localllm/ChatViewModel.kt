@@ -11,6 +11,8 @@ import com.bobsdevattic.localllm.data.ConversationStore
 import com.bobsdevattic.localllm.data.GitHubAccount
 import com.bobsdevattic.localllm.data.GitHubAccountStore
 import com.bobsdevattic.localllm.data.GitHubClient
+import com.bobsdevattic.localllm.data.GitHubFile
+import com.bobsdevattic.localllm.data.GitHubIssue
 import com.bobsdevattic.localllm.data.ImageUtil
 import com.bobsdevattic.localllm.data.LmStudioClient
 import com.bobsdevattic.localllm.data.MessageRole
@@ -28,6 +30,9 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 private const val REPO = "Bobs-Dev-Attic/LocalLLM"
+
+/** Max characters of GitHub content injected into the draft, to protect context. */
+private const val MAX_GITHUB_CONTEXT_CHARS = 12000
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
@@ -90,7 +95,10 @@ data class ChatUiState(
     val githubAccounts: List<GitHubAccount> = emptyList(),
     val activeGitHubAccountId: String? = null,
     val isAddingGitHubAccount: Boolean = false,
-    val githubError: String? = null
+    val githubError: String? = null,
+    val githubRepos: List<String> = emptyList(),
+    val isLoadingGitHubRepos: Boolean = false,
+    val isFetchingGitHubContext: Boolean = false
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -314,6 +322,96 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearGitHubError() = _state.update { it.copy(githubError = null) }
+
+    // --- GitHub attach context (Phase 2) ---------------------------------
+
+    fun loadGitHubRepos(accountId: String) {
+        val token = githubStore.token(accountId) ?: run {
+            _state.update { it.copy(githubError = "No stored token for that account.") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(isLoadingGitHubRepos = true, githubError = null, githubRepos = emptyList()) }
+            runCatching { githubClient.listRepos(token) }
+                .onSuccess { repos -> _state.update { it.copy(githubRepos = repos, isLoadingGitHubRepos = false) } }
+                .onFailure { error ->
+                    _state.update { it.copy(isLoadingGitHubRepos = false, githubError = error.message ?: "Could not load repositories.") }
+                }
+        }
+    }
+
+    fun attachGitHubFile(accountId: String, repoFullName: String, path: String, ref: String?) {
+        val token = tokenOrError(accountId) ?: return
+        val parts = splitRepo(repoFullName) ?: return
+        if (path.isBlank()) {
+            _state.update { it.copy(githubError = "Enter a file path.") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(isFetchingGitHubContext = true, githubError = null) }
+            runCatching { githubClient.getFile(token, parts.first, parts.second, path.trim(), ref?.trim()) }
+                .onSuccess { file ->
+                    appendContext(buildFileContext(repoFullName, file))
+                    _state.update { it.copy(isFetchingGitHubContext = false) }
+                }
+                .onFailure { error -> failContext(error) }
+        }
+    }
+
+    fun attachGitHubIssue(accountId: String, repoFullName: String, number: Int) {
+        val token = tokenOrError(accountId) ?: return
+        val parts = splitRepo(repoFullName) ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(isFetchingGitHubContext = true, githubError = null) }
+            runCatching { githubClient.getIssue(token, parts.first, parts.second, number) }
+                .onSuccess { issue ->
+                    appendContext(buildIssueContext(repoFullName, issue))
+                    _state.update { it.copy(isFetchingGitHubContext = false) }
+                }
+                .onFailure { error -> failContext(error) }
+        }
+    }
+
+    private fun tokenOrError(accountId: String): String? {
+        val token = githubStore.token(accountId)
+        if (token == null) _state.update { it.copy(githubError = "No stored token for that account.") }
+        return token
+    }
+
+    private fun splitRepo(repoFullName: String): Pair<String, String>? {
+        val trimmed = repoFullName.trim().removePrefix("https://github.com/").trim('/')
+        val parts = trimmed.split("/")
+        if (parts.size < 2 || parts[0].isBlank() || parts[1].isBlank()) {
+            _state.update { it.copy(githubError = "Enter the repository as owner/repo.") }
+            return null
+        }
+        return parts[0] to parts[1]
+    }
+
+    private fun failContext(error: Throwable) {
+        _state.update { it.copy(isFetchingGitHubContext = false, githubError = error.message ?: "Could not fetch from GitHub.") }
+    }
+
+    private fun appendContext(block: String) {
+        _state.update {
+            val base = it.draft.trimEnd()
+            val joined = if (base.isEmpty()) block else "$base\n\n$block"
+            it.copy(draft = joined)
+        }
+    }
+
+    private fun buildFileContext(repoFullName: String, file: GitHubFile): String {
+        val refSuffix = file.ref?.let { "@$it" }.orEmpty()
+        val capped = file.content.take(MAX_GITHUB_CONTEXT_CHARS)
+        val truncated = if (capped.length < file.content.length) "\n…(truncated)" else ""
+        return "GitHub file — $repoFullName/${file.path}$refSuffix:\n```\n$capped$truncated\n```"
+    }
+
+    private fun buildIssueContext(repoFullName: String, issue: GitHubIssue): String {
+        val capped = issue.body.take(MAX_GITHUB_CONTEXT_CHARS)
+        val truncated = if (capped.length < issue.body.length) "\n…(truncated)" else ""
+        return "GitHub issue — $repoFullName#${issue.number} (${issue.state}): ${issue.title}\n$capped$truncated"
+    }
 
     fun updateDraft(value: String) = _state.update { it.copy(draft = value) }
 
