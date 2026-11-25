@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Close
@@ -81,6 +82,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -106,6 +108,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.LocalContentColor
@@ -126,6 +129,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bobsdevattic.localllm.data.Attachment
 import com.bobsdevattic.localllm.data.ChatMessage
+import com.bobsdevattic.localllm.data.GitHubAccount
 import com.bobsdevattic.localllm.data.ImageUtil
 import com.bobsdevattic.localllm.data.MessageRole
 import com.bobsdevattic.localllm.data.ProcessingDetails
@@ -811,6 +815,18 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                     state.updateMessage?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+
+                    HorizontalDivider()
+                    GitHubAccountsSection(
+                        accounts = state.githubAccounts,
+                        activeId = state.activeGitHubAccountId,
+                        isAdding = state.isAddingGitHubAccount,
+                        error = state.githubError,
+                        onAdd = { label, token -> vm.addGitHubAccount(label, token) },
+                        onRemove = vm::removeGitHubAccount,
+                        onSetActive = vm::setActiveGitHubAccount,
+                        onClearError = vm::clearGitHubError
+                    )
                 }
             },
             confirmButton = {
@@ -1484,6 +1500,96 @@ private fun ErrorCard(message: String) {
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+/** Settings section to link / switch / remove GitHub accounts (Phase 0). */
+@Composable
+private fun GitHubAccountsSection(
+    accounts: List<GitHubAccount>,
+    activeId: String?,
+    isAdding: Boolean,
+    error: String?,
+    onAdd: (String, String) -> Unit,
+    onRemove: (String) -> Unit,
+    onSetActive: (String) -> Unit,
+    onClearError: () -> Unit
+) {
+    var label by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf("") }
+    val wasAdding = remember { mutableStateOf(isAdding) }
+    // Clear the inputs once an add transitions from in-progress to success.
+    LaunchedEffect(isAdding, error) {
+        if (wasAdding.value && !isAdding && error == null) {
+            label = ""
+            token = ""
+        }
+        wasAdding.value = isAdding
+    }
+
+    Text("GitHub accounts", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+    Text(
+        "Link GitHub accounts with a fine-grained personal access token. The selected account is the active one for GitHub actions.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    if (accounts.isEmpty()) {
+        Text(
+            "No accounts linked yet.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    } else {
+        accounts.forEach { account ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                RadioButton(selected = account.id == activeId, onClick = { onSetActive(account.id) })
+                Column(Modifier.weight(1f)) {
+                    Text(account.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(
+                        "@${account.login}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = { onRemove(account.id) }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Remove ${account.label}")
+                }
+            }
+        }
+    }
+
+    error?.let { ErrorCard(it) }
+
+    OutlinedTextField(
+        value = label,
+        onValueChange = { label = it; if (error != null) onClearError() },
+        label = { Text("Label (optional)") },
+        singleLine = true,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    )
+    OutlinedTextField(
+        value = token,
+        onValueChange = { token = it; if (error != null) onClearError() },
+        label = { Text("Personal access token") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    )
+    Button(onClick = { onAdd(label, token) }, enabled = !isAdding && token.isNotBlank()) {
+        if (isAdding) {
+            CircularProgressIndicator(
+                Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Verifying…")
+        } else {
+            Text("Add account")
+        }
     }
 }
 

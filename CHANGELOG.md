@@ -4,6 +4,14 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.27
+
+- GitHub accounts (connectors, phase 1 of a larger feature): link one or more
+  GitHub accounts in Settings with a fine-grained personal access token. Tokens
+  are verified against the GitHub API and stored in Android Keystore-backed
+  encrypted storage. Pick the active account with a radio button; remove
+  accounts you no longer need. (Using an account's access in chat lands next.)
+
 ## 0.1.26
 
 - New "Night" color theme: a low-light palette with near-black surfaces, warm
