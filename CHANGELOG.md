@@ -4,6 +4,13 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.23
+
+- HTTPS over Tailscale: the network security config now also trusts
+  user-installed CAs for the Tailscale address `100.94.236.127` (alongside the
+  LAN `192.168.11.225`). The server's TLS cert must list each address it's
+  reached by in its SAN (e.g. `mkcert 192.168.11.225 100.94.236.127`).
+
 ## 0.1.22
 
 - HTTPS to LM Studio at `192.168.11.225`: the app now trusts user-installed CAs

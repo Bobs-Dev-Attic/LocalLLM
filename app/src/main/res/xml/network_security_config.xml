@@ -12,15 +12,20 @@
     </base-config>
 
     <!--
-        The user's LM Studio host. In addition to the system CAs, trust
-        user-installed CAs (e.g. a locally generated mkcert root) so an HTTPS
-        endpoint served with a cert signed by that root validates. The user
-        installs the root on the phone once (Settings > Security > Encryption
-        & credentials > Install a certificate > CA certificate); nothing
-        sensitive is bundled into the app.
+        The user's LM Studio hosts (local LAN IP and Tailscale IP). In addition
+        to the system CAs, trust user-installed CAs (e.g. a locally generated
+        mkcert root) so an HTTPS endpoint served with a cert signed by that root
+        validates. The user installs the root on the phone once (Settings >
+        Security > Encryption & credentials > Install a certificate > CA
+        certificate); nothing sensitive is bundled into the app.
+
+        Note: the TLS server cert must list each address below in its SAN, e.g.
+        `mkcert 192.168.11.225 100.94.236.127`, or the handshake fails hostname
+        verification even though the CA is trusted.
     -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">192.168.11.225</domain>
+        <domain includeSubdomains="false">100.94.236.127</domain>
         <trust-anchors>
             <certificates src="system" />
             <certificates src="user" />
