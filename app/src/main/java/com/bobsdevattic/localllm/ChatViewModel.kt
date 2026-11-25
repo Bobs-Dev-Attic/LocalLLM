@@ -612,7 +612,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         val messages = JSONArray()
         val writeNote = if (current.githubWriteEnabled) {
-            " You may also create issues and comments, but only when the user clearly asks you to; confirm the target repository first."
+            " You may also create issues and comments, and propose code changes by opening a pull request" +
+                " (github_propose_change) — but only when the user clearly asks you to. Confirm the target" +
+                " repository first, read the current file before changing it, and never commit to the base branch directly."
         } else {
             ""
         }
@@ -699,6 +701,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "github_search_code" -> "Search ${args.optString("repo")} for \"${args.optString("query")}\""
             "github_create_issue" -> "Create issue in ${args.optString("repo")}: ${args.optString("title")}"
             "github_create_comment" -> "Comment on ${args.optString("repo")}#${args.optInt("number")}"
+            "github_propose_change" -> "Open PR on ${args.optString("repo")}: ${args.optString("title")}"
             else -> call.name
         }
     }

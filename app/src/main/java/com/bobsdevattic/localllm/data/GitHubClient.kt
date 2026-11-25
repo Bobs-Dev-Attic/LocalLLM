@@ -169,6 +169,114 @@ class GitHubClient(
         GitHubCreatedRef(number = number, url = o.optString("html_url"))
     }
 
+    /**
+     * Opens a pull request proposing [files] (path → full new content) on a new
+     * branch off [base] (default branch if null). Never commits to the base
+     * branch directly. Returns the created PR's number and URL.
+     */
+    suspend fun proposeChange(
+        token: String,
+        owner: String,
+        repo: String,
+        title: String,
+        body: String?,
+        files: List<Pair<String, String>>,
+        base: String?,
+        branch: String?
+    ): GitHubCreatedRef = withContext(Dispatchers.IO) {
+        val baseBranch = base?.ifBlank { null } ?: defaultBranch(token, owner, repo)
+        val baseSha = refSha(token, owner, repo, baseBranch)
+        val newBranch = (branch?.ifBlank { null } ?: generateBranchName(title))
+        createRef(token, owner, repo, "refs/heads/$newBranch", baseSha)
+        for ((path, content) in files) {
+            val existingSha = fileShaOrNull(token, owner, repo, path, newBranch)
+            putFile(token, owner, repo, path, content, "$title (via LocalLLM)", newBranch, existingSha)
+        }
+        createPull(token, owner, repo, title, newBranch, baseBranch, body)
+    }
+
+    private fun refSha(token: String, owner: String, repo: String, branch: String): String {
+        val url = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .addPathSegment("git").addPathSegment("ref")
+            .addPathSegment("heads").addPathSegment(branch)
+            .build()
+        val o = getJsonObject(url, token)
+        return o.optJSONObject("object")?.optString("sha").orEmpty()
+            .ifBlank { throw GitHubException("Could not resolve the base branch '$branch'.") }
+    }
+
+    private fun createRef(token: String, owner: String, repo: String, ref: String, sha: String) {
+        val url = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .addPathSegment("git").addPathSegment("refs")
+            .build()
+        post(url, token, JSONObject().put("ref", ref).put("sha", sha))
+    }
+
+    private fun fileShaOrNull(token: String, owner: String, repo: String, path: String, ref: String): String? {
+        val builder = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .addPathSegment("contents")
+        path.split("/").filter { it.isNotBlank() }.forEach { builder.addPathSegment(it) }
+        builder.addQueryParameter("ref", ref)
+        return try {
+            getJsonObject(builder.build(), token).optString("sha").ifBlank { null }
+        } catch (e: GitHubException) {
+            if (e.message?.contains("404") == true) null else throw e
+        }
+    }
+
+    private fun putFile(
+        token: String,
+        owner: String,
+        repo: String,
+        path: String,
+        content: String,
+        message: String,
+        branch: String,
+        sha: String?
+    ) {
+        val builder = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .addPathSegment("contents")
+        path.split("/").filter { it.isNotBlank() }.forEach { builder.addPathSegment(it) }
+        val payload = JSONObject()
+            .put("message", message)
+            .put("content", Base64.encodeToString(content.toByteArray(), Base64.NO_WRAP))
+            .put("branch", branch)
+        if (sha != null) payload.put("sha", sha)
+        put(builder.build(), token, payload)
+    }
+
+    private fun createPull(
+        token: String,
+        owner: String,
+        repo: String,
+        title: String,
+        head: String,
+        base: String,
+        body: String?
+    ): GitHubCreatedRef {
+        val url = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .addPathSegment("pulls")
+            .build()
+        val payload = JSONObject().put("title", title).put("head", head).put("base", base)
+        if (!body.isNullOrBlank()) payload.put("body", body)
+        val o = JSONObject(post(url, token, payload))
+        return GitHubCreatedRef(number = o.optInt("number"), url = o.optString("html_url"))
+    }
+
+    private fun generateBranchName(title: String): String {
+        val slug = title.lowercase()
+            .replace(Regex("[^a-z0-9]+"), "-")
+            .trim('-')
+            .take(40)
+            .ifBlank { "change" }
+        return "localllm/$slug-${System.currentTimeMillis() % 100000}"
+    }
+
     // --- helpers ---------------------------------------------------------
 
     private fun requestBuilder(url: okhttp3.HttpUrl, token: String): Request.Builder =
@@ -182,10 +290,16 @@ class GitHubClient(
     private fun authed(url: okhttp3.HttpUrl, token: String): Request =
         requestBuilder(url, token).build()
 
-    private fun post(url: okhttp3.HttpUrl, token: String, json: JSONObject): String {
-        val request = requestBuilder(url, token)
-            .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
-            .build()
+    private fun post(url: okhttp3.HttpUrl, token: String, json: JSONObject): String =
+        send(url, token, json, post = true)
+
+    private fun put(url: okhttp3.HttpUrl, token: String, json: JSONObject): String =
+        send(url, token, json, post = false)
+
+    private fun send(url: okhttp3.HttpUrl, token: String, json: JSONObject, post: Boolean): String {
+        val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+        val builder = requestBuilder(url, token)
+        val request = (if (post) builder.post(requestBody) else builder.put(requestBody)).build()
         http.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             if (!response.isSuccessful) throw errorFor(response.code, raw)

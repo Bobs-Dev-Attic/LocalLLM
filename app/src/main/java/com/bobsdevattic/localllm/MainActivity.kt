@@ -1612,9 +1612,9 @@ private fun GitHubAccountsSection(
         if (toolsEnabled) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
-                    Text("Allow write actions (create issues & comments)", style = MaterialTheme.typography.bodyMedium)
+                    Text("Allow write actions (issues, comments, PRs)", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "When on, the model can create issues and comments as the active account. Requires a token with Issues/Pull requests write access.",
+                        "When on, the model can create issues and comments and open pull requests (on a new branch, never the base) as the active account. Requires a token with Contents, Issues, and Pull requests write access.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
