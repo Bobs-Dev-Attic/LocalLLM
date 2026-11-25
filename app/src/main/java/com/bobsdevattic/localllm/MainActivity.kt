@@ -831,6 +831,8 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         error = state.githubError,
                         toolsEnabled = state.githubToolsEnabled,
                         onToolsEnabledChange = vm::setGitHubToolsEnabled,
+                        writeEnabled = state.githubWriteEnabled,
+                        onWriteEnabledChange = vm::setGitHubWriteEnabled,
                         onAdd = { label, token -> vm.addGitHubAccount(label, token) },
                         onRemove = vm::removeGitHubAccount,
                         onSetActive = vm::setActiveGitHubAccount,
@@ -1544,6 +1546,8 @@ private fun GitHubAccountsSection(
     error: String?,
     toolsEnabled: Boolean,
     onToolsEnabledChange: (Boolean) -> Unit,
+    writeEnabled: Boolean,
+    onWriteEnabledChange: (Boolean) -> Unit,
     onAdd: (String, String) -> Unit,
     onRemove: (String) -> Unit,
     onSetActive: (String) -> Unit,
@@ -1604,6 +1608,19 @@ private fun GitHubAccountsSection(
                 )
             }
             Switch(checked = toolsEnabled, onCheckedChange = onToolsEnabledChange)
+        }
+        if (toolsEnabled) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text("Allow write actions (create issues & comments)", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "When on, the model can create issues and comments as the active account. Requires a token with Issues/Pull requests write access.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = writeEnabled, onCheckedChange = onWriteEnabledChange)
+            }
         }
     }
 

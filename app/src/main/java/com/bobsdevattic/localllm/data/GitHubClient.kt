@@ -4,8 +4,10 @@ import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -132,33 +134,84 @@ class GitHubClient(
         }.distinct()
     }
 
+    /** Creates a new issue and returns its number and html URL. */
+    suspend fun createIssue(
+        token: String,
+        owner: String,
+        repo: String,
+        title: String,
+        body: String?
+    ): GitHubCreatedRef = withContext(Dispatchers.IO) {
+        val url = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .addPathSegment("issues")
+            .build()
+        val payload = JSONObject().put("title", title)
+        if (!body.isNullOrBlank()) payload.put("body", body)
+        val o = JSONObject(post(url, token, payload))
+        GitHubCreatedRef(number = o.optInt("number"), url = o.optString("html_url"))
+    }
+
+    /** Adds a comment to an issue or pull request; returns its html URL. */
+    suspend fun addIssueComment(
+        token: String,
+        owner: String,
+        repo: String,
+        number: Int,
+        body: String
+    ): GitHubCreatedRef = withContext(Dispatchers.IO) {
+        val url = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .addPathSegment("issues").addPathSegment(number.toString())
+            .addPathSegment("comments")
+            .build()
+        val o = JSONObject(post(url, token, JSONObject().put("body", body)))
+        GitHubCreatedRef(number = number, url = o.optString("html_url"))
+    }
+
     // --- helpers ---------------------------------------------------------
 
-    private fun authed(url: okhttp3.HttpUrl, token: String): Request =
+    private fun requestBuilder(url: okhttp3.HttpUrl, token: String): Request.Builder =
         Request.Builder()
             .url(url)
             .header("Authorization", "Bearer ${token.trim()}")
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .header("User-Agent", "LocalLLM-Android")
+
+    private fun authed(url: okhttp3.HttpUrl, token: String): Request =
+        requestBuilder(url, token).build()
+
+    private fun post(url: okhttp3.HttpUrl, token: String, json: JSONObject): String {
+        val request = requestBuilder(url, token)
+            .post(json.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
             .build()
+        http.newCall(request).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw errorFor(response.code, raw)
+            return raw
+        }
+    }
 
     private fun body(url: okhttp3.HttpUrl, token: String): String {
         http.newCall(authed(url, token)).execute().use { response ->
             val raw = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                val apiMessage = runCatching { JSONObject(raw).optString("message") }.getOrNull()
-                throw GitHubException(
-                    when (response.code) {
-                        401 -> "Invalid or expired token (401)."
-                        403 -> "Forbidden — the token may lack the required scopes (403)."
-                        404 -> "Not found — check the account's access, the repo, and the path (404)."
-                        else -> apiMessage?.takeIf { it.isNotBlank() } ?: "GitHub error ${response.code}."
-                    }
-                )
-            }
+            if (!response.isSuccessful) throw errorFor(response.code, raw)
             return raw
         }
+    }
+
+    private fun errorFor(code: Int, raw: String): GitHubException {
+        val apiMessage = runCatching { JSONObject(raw).optString("message") }.getOrNull()
+        return GitHubException(
+            when (code) {
+                401 -> "Invalid or expired token (401)."
+                403 -> "Forbidden — the token may lack the required scopes (403)."
+                404 -> "Not found — check the account's access, the repo, and the path (404)."
+                422 -> apiMessage?.takeIf { it.isNotBlank() } ?: "Validation failed (422)."
+                else -> apiMessage?.takeIf { it.isNotBlank() } ?: "GitHub error $code."
+            }
+        )
     }
 
     private fun getJsonObject(url: okhttp3.HttpUrl, token: String): JSONObject =
@@ -169,3 +222,6 @@ class GitHubClient(
 }
 
 class GitHubException(message: String) : Exception(message)
+
+/** Reference to a created issue or comment. */
+data class GitHubCreatedRef(val number: Int, val url: String)

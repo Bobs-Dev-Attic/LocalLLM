@@ -4,6 +4,14 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.31
+
+- GitHub write actions (opt-in): a second switch, "Allow write actions (create
+  issues & comments)", appears under the tools switch. When on, the model can
+  call `github_create_issue` and `github_create_comment` as the active account.
+  Off by default; requires a token with Issues/Pull requests write access. The
+  write tools are hidden from the model unless this is enabled.
+
 ## 0.1.30
 
 - Two more GitHub tools for the model to call: `github_list_tree` (list a

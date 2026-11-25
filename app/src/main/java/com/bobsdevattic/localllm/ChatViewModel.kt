@@ -106,7 +106,8 @@ data class ChatUiState(
     val githubRepos: List<String> = emptyList(),
     val isLoadingGitHubRepos: Boolean = false,
     val isFetchingGitHubContext: Boolean = false,
-    val githubToolsEnabled: Boolean = false
+    val githubToolsEnabled: Boolean = false,
+    val githubWriteEnabled: Boolean = false
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -139,7 +140,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             appVersion = currentVersion,
             githubAccounts = githubStore.loadAccounts(),
             activeGitHubAccountId = githubStore.activeAccountId(),
-            githubToolsEnabled = preferences.getBoolean("github_tools_enabled", false)
+            githubToolsEnabled = preferences.getBoolean("github_tools_enabled", false),
+            githubWriteEnabled = preferences.getBoolean("github_write_enabled", false)
         )
     )
     val state = _state.asStateFlow()
@@ -335,6 +337,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun setGitHubToolsEnabled(enabled: Boolean) {
         _state.update { it.copy(githubToolsEnabled = enabled) }
         preferences.edit().putBoolean("github_tools_enabled", enabled).apply()
+    }
+
+    fun setGitHubWriteEnabled(enabled: Boolean) {
+        _state.update { it.copy(githubWriteEnabled = enabled) }
+        preferences.edit().putBoolean("github_write_enabled", enabled).apply()
     }
 
     // --- GitHub attach context (Phase 2) ---------------------------------
@@ -604,6 +611,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val messages = JSONArray()
+        val writeNote = if (current.githubWriteEnabled) {
+            " You may also create issues and comments, but only when the user clearly asks you to; confirm the target repository first."
+        } else {
+            ""
+        }
         messages.put(
             JSONObject()
                 .put("role", "system")
@@ -611,7 +623,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     "content",
                     "You can call GitHub tools to read repositories, files, and issues for the " +
                         "user's active GitHub account. Use them when the question concerns GitHub " +
-                        "content, then answer concisely from what you read."
+                        "content, then answer concisely from what you read." + writeNote
                 )
         )
         (history + userMessage).forEach { message ->
@@ -628,7 +640,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var finalText: String? = null
             while (iterations < MAX_TOOL_ITERATIONS) {
                 iterations++
-                val result = client.complete(current.endpoint, current.model, messages, GitHubTools.specs())
+                val result = client.complete(
+                    current.endpoint, current.model, messages,
+                    GitHubTools.specs(allowWrite = current.githubWriteEnabled)
+                )
                 promptTokens = result.promptTokens ?: promptTokens
                 completionTokens = result.completionTokens ?: completionTokens
                 finishReason = result.finishReason ?: finishReason
@@ -682,6 +697,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "github_get_issue" -> "Read ${args.optString("repo")}#${args.optInt("number")}"
             "github_list_tree" -> "List files in ${args.optString("repo")}"
             "github_search_code" -> "Search ${args.optString("repo")} for \"${args.optString("query")}\""
+            "github_create_issue" -> "Create issue in ${args.optString("repo")}: ${args.optString("title")}"
+            "github_create_comment" -> "Comment on ${args.optString("repo")}#${args.optInt("number")}"
             else -> call.name
         }
     }
