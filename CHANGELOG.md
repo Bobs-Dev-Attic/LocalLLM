@@ -4,6 +4,15 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.32
+
+- Propose code changes as a pull request: with write actions enabled, the model
+  can call `github_propose_change` to open a PR — it creates a new branch off
+  the base branch, commits the given files (full new contents), and opens the
+  PR against the base. It never commits to the base branch directly. Requires a
+  token with Contents + Pull requests write access. The write toggle now also
+  covers this (label updated to "issues, comments, PRs").
+
 ## 0.1.31
 
 - GitHub write actions (opt-in): a second switch, "Allow write actions (create

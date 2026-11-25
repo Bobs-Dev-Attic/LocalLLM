@@ -97,6 +97,37 @@ object GitHubTools {
                     required = listOf("repo", "number", "body")
                 )
             )
+            tools.put(
+                function(
+                    name = "github_propose_change",
+                    description = "Propose code changes by opening a pull request. Creates a new branch off the base branch, commits the given files (full new contents), and opens a PR. Never commits to the base branch directly. Read the current file first (github_get_file) so you send complete, correct contents.",
+                    properties = JSONObject()
+                        .put("repo", strProp("Repository as owner/repo."))
+                        .put("title", strProp("Pull request title (also used as the commit message)."))
+                        .put("body", strProp("Pull request description in Markdown (optional)."))
+                        .put("base", strProp("Base branch to target (optional; defaults to the repository's default branch)."))
+                        .put("branch", strProp("New branch name (optional; auto-generated if omitted)."))
+                        .put(
+                            "files",
+                            JSONObject()
+                                .put("type", "array")
+                                .put("description", "Files to create or replace, each with the full new file content.")
+                                .put(
+                                    "items",
+                                    JSONObject()
+                                        .put("type", "object")
+                                        .put(
+                                            "properties",
+                                            JSONObject()
+                                                .put("path", strProp("File path within the repository."))
+                                                .put("content", strProp("Full new content of the file."))
+                                        )
+                                        .put("required", JSONArray(listOf("path", "content")))
+                                )
+                        ),
+                    required = listOf("repo", "title", "files")
+                )
+            )
         }
 
         return tools
@@ -172,6 +203,28 @@ object GitHubTools {
                     if (body.isBlank()) return "Error: 'body' is required."
                     val ref = client.addIssueComment(token, owner, repo, number, body)
                     "Added comment: ${ref.url}"
+                }
+
+                "github_propose_change" -> {
+                    val (owner, repo) = splitRepo(args.optString("repo"))
+                        ?: return "Error: 'repo' must be owner/repo."
+                    val title = args.optString("title")
+                    if (title.isBlank()) return "Error: 'title' is required."
+                    val filesArr = args.optJSONArray("files") ?: return "Error: 'files' is required."
+                    val files = (0 until filesArr.length()).mapNotNull { i ->
+                        val o = filesArr.optJSONObject(i) ?: return@mapNotNull null
+                        val path = o.optString("path")
+                        if (path.isBlank()) null else path to o.optString("content")
+                    }
+                    if (files.isEmpty()) return "Error: 'files' must contain at least one {path, content}."
+                    val ref = client.proposeChange(
+                        token, owner, repo, title,
+                        args.optString("body").ifBlank { null },
+                        files,
+                        args.optString("base").ifBlank { null },
+                        args.optString("branch").ifBlank { null }
+                    )
+                    "Opened pull request #${ref.number}: ${ref.url}"
                 }
 
                 else -> "Error: unknown tool '$name'."
