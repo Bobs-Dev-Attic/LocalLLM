@@ -39,6 +39,7 @@ enum class ColorTheme(val label: String) {
     ROSE("Rose"),
     AMBER("Amber"),
     SLATE("Slate"),
+    NIGHT("Night"),
     RAINBOW("Rainbow"),
     HIGH_CONTRAST("High Contrast"),
     MONOCHROME("Monochrome")

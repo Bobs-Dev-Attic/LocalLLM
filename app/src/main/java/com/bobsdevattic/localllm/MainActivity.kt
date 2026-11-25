@@ -325,6 +325,30 @@ private fun colorSchemeFor(theme: ColorTheme, dark: Boolean): ColorScheme = when
         surface = Color(0xFFF7F9FC), onSurface = Color(0xFF131A21),
         surfaceVariant = Color(0xFFDBE2EA), onSurfaceVariant = Color(0xFF3A434D)
     )
+    ColorTheme.NIGHT -> if (dark) darkColorScheme(
+        // Low-light: near-black surfaces, warm low-blue amber accents, and dim
+        // (non-glaring) warm-grey text to reduce eye strain in the dark.
+        primary = Color(0xFFC08A5A), onPrimary = Color(0xFF140B04),
+        primaryContainer = Color(0xFF3A2614), onPrimaryContainer = Color(0xFFE2C4A4),
+        secondary = Color(0xFFA98B6E), onSecondary = Color(0xFF140B04),
+        secondaryContainer = Color(0xFF241A10), onSecondaryContainer = Color(0xFFD8C2A8),
+        tertiary = Color(0xFF9A7256),
+        background = Color(0xFF000000), onBackground = Color(0xFFB8A690),
+        surface = Color(0xFF070503), onSurface = Color(0xFFB8A690),
+        surfaceVariant = Color(0xFF14100A), onSurfaceVariant = Color(0xFF9C8B76),
+        outline = Color(0xFF5C5040), outlineVariant = Color(0xFF2A241B),
+        error = Color(0xFFCF7A6A), onError = Color(0xFF140B04)
+    ) else lightColorScheme(
+        // Light pairing is a dim, warm sepia (Night is meant for Dark).
+        primary = Color(0xFF8A5A2E), onPrimary = Color.White,
+        primaryContainer = Color(0xFFEAD8C2), onPrimaryContainer = Color(0xFF301A08),
+        secondary = Color(0xFF8A6E52), onSecondary = Color.White,
+        secondaryContainer = Color(0xFFEADBC8), onSecondaryContainer = Color(0xFF301A08),
+        tertiary = Color(0xFF7A5A3E),
+        background = Color(0xFFEDE4D6), onBackground = Color(0xFF2A2016),
+        surface = Color(0xFFF3ECDF), onSurface = Color(0xFF2A2016),
+        surfaceVariant = Color(0xFFE2D5C2), onSurfaceVariant = Color(0xFF4E4336)
+    )
     ColorTheme.RAINBOW -> if (dark) darkColorScheme(
         primary = Color(0xFFFF80AB), onPrimary = Color(0xFF5A0022),
         primaryContainer = Color(0xFFAD1457), onPrimaryContainer = Color(0xFFFFD9E2),

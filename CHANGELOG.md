@@ -4,6 +4,12 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.26
+
+- New "Night" color theme: a low-light palette with near-black surfaces, warm
+  low-blue-light accents, and dimmed non-glaring text to reduce eye strain —
+  best paired with Theme → Dark. (Light mode renders it as a warm sepia.)
+
 ## 0.1.25
 
 - The API base URL dropdown is now preloaded with both
