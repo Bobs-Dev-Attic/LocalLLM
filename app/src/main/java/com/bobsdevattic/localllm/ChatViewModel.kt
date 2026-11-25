@@ -52,11 +52,20 @@ enum class FontSize(val label: String, val scale: Float) {
     LARGEST("Largest", 1.45f)
 }
 
+/** The default LM Studio base URL (local LAN). */
+const val DEFAULT_API_ENDPOINT = "https://192.168.11.225:8443/v1"
+
+/** Base URLs preloaded into the endpoint history/dropdown (LAN + Tailscale). */
+val DEFAULT_API_ENDPOINTS = listOf(
+    "https://192.168.11.225:8443/v1",
+    "https://100.94.236.127:8443/v1"
+)
+
 data class ConversationSummary(val id: String, val title: String, val updatedAt: Long)
 
 data class ChatUiState(
-    val endpoint: String = "https://192.168.11.225:8443/v1",
-    val endpointHistory: List<String> = emptyList(),
+    val endpoint: String = DEFAULT_API_ENDPOINT,
+    val endpointHistory: List<String> = DEFAULT_API_ENDPOINTS,
     val model: String = "",
     val models: List<ModelInfo> = emptyList(),
     val messages: List<ChatMessage> = emptyList(),
@@ -86,9 +95,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }.getOrNull() ?: "0.0.0"
     private val _state = MutableStateFlow(
         ChatUiState(
-            endpoint = preferences.getString("endpoint", "https://192.168.11.225:8443/v1")!!,
-            endpointHistory = preferences.getString("endpoint_history", null)
-                ?.split("\n")?.filter { it.isNotBlank() } ?: emptyList(),
+            endpoint = preferences.getString("endpoint", DEFAULT_API_ENDPOINT)!!,
+            endpointHistory = run {
+                val saved = preferences.getString("endpoint_history", null)
+                    ?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
+                // Always offer the LAN + Tailscale presets, keeping any saved
+                // entries (most-recent first) ahead of the defaults.
+                (saved + DEFAULT_API_ENDPOINTS.filter { it !in saved }).take(8)
+            },
             model = preferences.getString("model", "")!!,
             themeMode = runCatching { ThemeMode.valueOf(preferences.getString("theme_mode", null) ?: "SYSTEM") }
                 .getOrDefault(ThemeMode.SYSTEM),
