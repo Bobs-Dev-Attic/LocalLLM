@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+        Default for all other hosts: allow cleartext HTTP so the app can still
+        reach LM Studio on any private LAN/localhost address (as before), and
+        trust only the system CAs.
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!--
+        The user's LM Studio host. In addition to the system CAs, trust
+        user-installed CAs (e.g. a locally generated mkcert root) so an HTTPS
+        endpoint served with a cert signed by that root validates. The user
+        installs the root on the phone once (Settings > Security > Encryption
+        & credentials > Install a certificate > CA certificate); nothing
+        sensitive is bundled into the app.
+    -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.11.225</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
