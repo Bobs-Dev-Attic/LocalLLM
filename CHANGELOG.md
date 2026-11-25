@@ -4,6 +4,13 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.25
+
+- The API base URL dropdown is now preloaded with both
+  `https://192.168.11.225:8443/v1` (LAN, the default) and
+  `https://100.94.236.127:8443/v1` (Tailscale), so either is one tap away. Any
+  previously used URLs are still listed first.
+
 ## 0.1.24
 
 - The default API base URL is now `https://192.168.11.225:8443/v1`.
