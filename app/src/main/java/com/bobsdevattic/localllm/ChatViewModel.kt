@@ -680,6 +680,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "github_list_repos" -> "List repositories"
             "github_get_file" -> "Read ${args.optString("repo")}/${args.optString("path")}"
             "github_get_issue" -> "Read ${args.optString("repo")}#${args.optInt("number")}"
+            "github_list_tree" -> "List files in ${args.optString("repo")}"
+            "github_search_code" -> "Search ${args.optString("repo")} for \"${args.optString("query")}\""
             else -> call.name
         }
     }

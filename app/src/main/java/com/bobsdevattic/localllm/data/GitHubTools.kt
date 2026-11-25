@@ -10,6 +10,8 @@ import org.json.JSONObject
 object GitHubTools {
 
     private const val MAX_TOOL_RESULT_CHARS = 12000
+    private const val MAX_TREE_PATHS = 400
+    private const val MAX_SEARCH_RESULTS = 30
 
     /** The tools array sent to the model (OpenAI function-calling format). */
     fun specs(): JSONArray {
@@ -47,6 +49,28 @@ object GitHubTools {
             )
         )
 
+        tools.put(
+            function(
+                name = "github_list_tree",
+                description = "List the file paths in a repository (recursive). Use this to discover the exact path of a file before reading it.",
+                properties = JSONObject()
+                    .put("repo", strProp("Repository as owner/repo."))
+                    .put("ref", strProp("Branch, tag, or commit SHA (optional; defaults to the default branch).")),
+                required = listOf("repo")
+            )
+        )
+
+        tools.put(
+            function(
+                name = "github_search_code",
+                description = "Search code within a repository and return matching file paths. Use this to find where a symbol or text appears.",
+                properties = JSONObject()
+                    .put("repo", strProp("Repository as owner/repo."))
+                    .put("query", strProp("Search terms (GitHub code-search syntax).")),
+                required = listOf("repo", "query")
+            )
+        )
+
         return tools
     }
 
@@ -78,6 +102,29 @@ object GitHubTools {
                     val number = if (args.has("number")) args.optInt("number") else return "Error: 'number' is required."
                     val issue = client.getIssue(token, owner, repo, number)
                     "#${issue.number} (${issue.state}): ${issue.title}\n\n${issue.body}".take(MAX_TOOL_RESULT_CHARS)
+                }
+
+                "github_list_tree" -> {
+                    val (owner, repo) = splitRepo(args.optString("repo"))
+                        ?: return "Error: 'repo' must be owner/repo."
+                    val ref = args.optString("ref").ifBlank { null }
+                    val paths = client.listTree(token, owner, repo, ref)
+                    if (paths.isEmpty()) {
+                        "(no files)"
+                    } else {
+                        val shown = paths.take(MAX_TREE_PATHS)
+                        val overflow = if (paths.size > shown.size) "\n…(${paths.size - shown.size} more paths)" else ""
+                        shown.joinToString("\n") + overflow
+                    }
+                }
+
+                "github_search_code" -> {
+                    val (owner, repo) = splitRepo(args.optString("repo"))
+                        ?: return "Error: 'repo' must be owner/repo."
+                    val query = args.optString("query")
+                    if (query.isBlank()) return "Error: 'query' is required."
+                    val paths = client.searchCode(token, owner, repo, query)
+                    if (paths.isEmpty()) "(no matches)" else paths.take(MAX_SEARCH_RESULTS).joinToString("\n")
                 }
 
                 else -> "Error: unknown tool '$name'."
