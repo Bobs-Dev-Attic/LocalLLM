@@ -4,6 +4,14 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.22
+
+- HTTPS to LM Studio at `192.168.11.225`: the app now trusts user-installed CAs
+  for that host via a network security config, so an endpoint served with a
+  locally generated (e.g. mkcert) certificate validates. Install the root CA on
+  the phone once (Settings > Security > Install a certificate > CA certificate).
+  Cleartext HTTP to private LAN addresses still works as before.
+
 ## 0.1.21
 
 - The Color picker now shows a small preview swatch (primary/secondary/tertiary)
