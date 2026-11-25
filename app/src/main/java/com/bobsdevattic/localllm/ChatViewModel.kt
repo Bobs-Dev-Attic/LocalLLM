@@ -13,6 +13,8 @@ import com.bobsdevattic.localllm.data.GitHubAccountStore
 import com.bobsdevattic.localllm.data.GitHubClient
 import com.bobsdevattic.localllm.data.GitHubFile
 import com.bobsdevattic.localllm.data.GitHubIssue
+import com.bobsdevattic.localllm.data.GitHubTools
+import com.bobsdevattic.localllm.data.ToolCall
 import com.bobsdevattic.localllm.data.ImageUtil
 import com.bobsdevattic.localllm.data.LmStudioClient
 import com.bobsdevattic.localllm.data.MessageRole
@@ -27,12 +29,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.UUID
 
 private const val REPO = "Bobs-Dev-Attic/LocalLLM"
 
 /** Max characters of GitHub content injected into the draft, to protect context. */
 private const val MAX_GITHUB_CONTEXT_CHARS = 12000
+
+/** Max model↔tool round-trips before forcing a final answer. */
+private const val MAX_TOOL_ITERATIONS = 5
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
@@ -98,7 +105,8 @@ data class ChatUiState(
     val githubError: String? = null,
     val githubRepos: List<String> = emptyList(),
     val isLoadingGitHubRepos: Boolean = false,
-    val isFetchingGitHubContext: Boolean = false
+    val isFetchingGitHubContext: Boolean = false,
+    val githubToolsEnabled: Boolean = false
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -130,7 +138,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 .getOrDefault(FontSize.SMALL),
             appVersion = currentVersion,
             githubAccounts = githubStore.loadAccounts(),
-            activeGitHubAccountId = githubStore.activeAccountId()
+            activeGitHubAccountId = githubStore.activeAccountId(),
+            githubToolsEnabled = preferences.getBoolean("github_tools_enabled", false)
         )
     )
     val state = _state.asStateFlow()
@@ -323,6 +332,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearGitHubError() = _state.update { it.copy(githubError = null) }
 
+    fun setGitHubToolsEnabled(enabled: Boolean) {
+        _state.update { it.copy(githubToolsEnabled = enabled) }
+        preferences.edit().putBoolean("github_tools_enabled", enabled).apply()
+    }
+
     // --- GitHub attach context (Phase 2) ---------------------------------
 
     fun loadGitHubRepos(accountId: String) {
@@ -492,6 +506,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         persistConversation(state.value.messages)
+
+        // Agentic GitHub tool-calling path (non-streaming) when enabled and an
+        // account is active. Images aren't supported in this path, so fall back
+        // to streaming when attachments are present.
+        val activeAccount = current.activeGitHubAccountId
+        if (current.githubToolsEnabled && activeAccount != null && userMessage.attachments.isEmpty()) {
+            generationJob = viewModelScope.launch {
+                runGitHubToolLoop(current, history, userMessage, assistantMessage, activeAccount)
+            }
+            return
+        }
+
         generationJob = viewModelScope.launch {
             var requestStartedAtNs = System.nanoTime()
             var firstTokenMs: Long? = null
@@ -555,6 +581,145 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 persistConversation(state.value.messages)
             }
         }
+    }
+
+    private suspend fun runGitHubToolLoop(
+        current: ChatUiState,
+        history: List<ChatMessage>,
+        userMessage: ChatMessage,
+        assistantMessage: ChatMessage,
+        accountId: String
+    ) {
+        val startedAtNs = System.nanoTime()
+        var promptTokens: Int? = null
+        var completionTokens: Int? = null
+        var finishReason: String? = null
+        var outcome = "Completed"
+
+        val token = githubStore.token(accountId)
+        if (token == null) {
+            _state.update { it.copy(error = "No stored token for the active GitHub account.") }
+            finalizeToolTurn(assistantMessage.id, current, startedAtNs, null, null, null, "Failed")
+            return
+        }
+
+        val messages = JSONArray()
+        messages.put(
+            JSONObject()
+                .put("role", "system")
+                .put(
+                    "content",
+                    "You can call GitHub tools to read repositories, files, and issues for the " +
+                        "user's active GitHub account. Use them when the question concerns GitHub " +
+                        "content, then answer concisely from what you read."
+                )
+        )
+        (history + userMessage).forEach { message ->
+            messages.put(
+                JSONObject()
+                    .put("role", if (message.role == MessageRole.USER) "user" else "assistant")
+                    .put("content", message.content)
+            )
+        }
+
+        val toolLog = StringBuilder()
+        try {
+            var iterations = 0
+            var finalText: String? = null
+            while (iterations < MAX_TOOL_ITERATIONS) {
+                iterations++
+                val result = client.complete(current.endpoint, current.model, messages, GitHubTools.specs())
+                promptTokens = result.promptTokens ?: promptTokens
+                completionTokens = result.completionTokens ?: completionTokens
+                finishReason = result.finishReason ?: finishReason
+
+                if (result.toolCalls.isEmpty()) {
+                    finalText = result.content ?: "(no answer)"
+                    break
+                }
+                messages.put(result.assistantMessage)
+                for (call in result.toolCalls) {
+                    toolLog.append("🔧 ").append(summarizeToolCall(call)).append('\n')
+                    setAssistantContent(assistantMessage.id, toolLog.toString() + "…")
+                    val output = GitHubTools.execute(githubClient, token, call.name, call.arguments)
+                    messages.put(
+                        JSONObject()
+                            .put("role", "tool")
+                            .put("tool_call_id", call.id)
+                            .put("content", output)
+                    )
+                }
+            }
+            if (finalText == null) {
+                // Hit the iteration cap — force a final answer without tools.
+                val finalResult = client.complete(current.endpoint, current.model, messages, null)
+                promptTokens = finalResult.promptTokens ?: promptTokens
+                completionTokens = finalResult.completionTokens ?: completionTokens
+                finishReason = finalResult.finishReason ?: finishReason
+                finalText = finalResult.content ?: "Stopped after $MAX_TOOL_ITERATIONS tool steps."
+            }
+            setAssistantContent(assistantMessage.id, finalText)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            outcome = "Cancelled"
+            throw error
+        } catch (error: Exception) {
+            outcome = "Failed"
+            _state.update { it.copy(error = error.message ?: "GitHub tool run failed.") }
+            if (toolLog.isNotEmpty()) setAssistantContent(assistantMessage.id, toolLog.toString().trimEnd())
+        } finally {
+            finalizeToolTurn(
+                assistantMessage.id, current, startedAtNs,
+                promptTokens, completionTokens, finishReason, outcome
+            )
+        }
+    }
+
+    private fun summarizeToolCall(call: ToolCall): String {
+        val args = runCatching { JSONObject(call.arguments) }.getOrDefault(JSONObject())
+        return when (call.name) {
+            "github_list_repos" -> "List repositories"
+            "github_get_file" -> "Read ${args.optString("repo")}/${args.optString("path")}"
+            "github_get_issue" -> "Read ${args.optString("repo")}#${args.optInt("number")}"
+            else -> call.name
+        }
+    }
+
+    private fun setAssistantContent(id: String, text: String) {
+        _state.update { state ->
+            state.copy(messages = state.messages.map { if (it.id == id) it.copy(content = text) else it })
+        }
+    }
+
+    private fun finalizeToolTurn(
+        assistantId: String,
+        current: ChatUiState,
+        startedAtNs: Long,
+        promptTokens: Int?,
+        completionTokens: Int?,
+        finishReason: String?,
+        outcome: String
+    ) {
+        val duration = (System.nanoTime() - startedAtNs) / 1_000_000
+        val details = ProcessingDetails(
+            requestId = UUID.randomUUID().toString(),
+            endpoint = current.endpoint,
+            model = current.model,
+            timeToFirstTokenMs = null,
+            totalDurationMs = duration,
+            promptTokens = promptTokens,
+            completionTokens = completionTokens,
+            finishReason = finishReason,
+            outcome = outcome
+        )
+        _state.update { state ->
+            state.copy(
+                isGenerating = false,
+                messages = state.messages.map {
+                    if (it.id == assistantId) it.copy(processing = details, isStreaming = false) else it
+                }
+            )
+        }
+        persistConversation(state.value.messages)
     }
 
     fun moreDetail() {

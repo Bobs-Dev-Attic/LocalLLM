@@ -157,6 +157,72 @@ class LmStudioClient {
         awaitClose { call.cancel(); job.cancel() }
     }
 
+    /**
+     * Non-streaming chat completion used by the agentic tool-calling loop.
+     * [messages] is a fully-built OpenAI messages array (so it may include
+     * assistant tool_calls and tool-result messages); [tools] is an optional
+     * OpenAI tools array.
+     */
+    suspend fun complete(
+        endpoint: String,
+        model: String,
+        messages: JSONArray,
+        tools: JSONArray?
+    ): CompletionResult = withContext(Dispatchers.IO) {
+        val base = validateEndpoint(endpoint)
+        val payload = JSONObject().apply {
+            put("model", model)
+            put("stream", false)
+            put("messages", messages)
+            if (tools != null && tools.length() > 0) {
+                put("tools", tools)
+                put("tool_choice", "auto")
+            }
+        }
+        val request = Request.Builder()
+            .url(base.newBuilder().addPathSegments("chat/completions").build())
+            .post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+            .build()
+        http.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw ApiException(
+                    "Chat request failed (HTTP ${response.code}): " +
+                        body.take(300).replace(Regex("[\\r\\n]+"), " ")
+                )
+            }
+            val json = JSONObject(body)
+            json.optJSONObject("error")?.let {
+                throw ApiException(it.optString("message", "The model server returned an error.").take(300))
+            }
+            val choice = json.optJSONArray("choices")?.optJSONObject(0)
+            val message = choice?.optJSONObject("message")
+                ?: JSONObject().put("role", "assistant").put("content", "")
+            val content = message.optString("content").takeUnless { it == "null" || it.isBlank() }
+            val toolCalls = mutableListOf<ToolCall>()
+            message.optJSONArray("tool_calls")?.let { calls ->
+                for (i in 0 until calls.length()) {
+                    val call = calls.optJSONObject(i) ?: continue
+                    val fn = call.optJSONObject("function") ?: continue
+                    toolCalls += ToolCall(
+                        id = call.optString("id", "call_$i"),
+                        name = fn.optString("name"),
+                        arguments = fn.optString("arguments", "{}")
+                    )
+                }
+            }
+            val usage = json.optJSONObject("usage")
+            CompletionResult(
+                content = content,
+                toolCalls = toolCalls,
+                finishReason = choice?.optString("finish_reason")?.takeUnless { it == "null" || it.isBlank() },
+                promptTokens = usage?.optInt("prompt_tokens")?.takeIf { usage.has("prompt_tokens") },
+                completionTokens = usage?.optInt("completion_tokens")?.takeIf { usage.has("completion_tokens") },
+                assistantMessage = message
+            )
+        }
+    }
+
     private suspend fun validateEndpoint(raw: String): HttpUrl {
         val parsed = parseApiBaseUrl(raw)
         if (parsed.scheme == "http") {
@@ -196,3 +262,17 @@ internal fun isPrivateHttpHost(host: String): Boolean {
 }
 
 class ApiException(message: String) : Exception(message)
+
+/** A tool/function call requested by the model. */
+data class ToolCall(val id: String, val name: String, val arguments: String)
+
+/** Result of a non-streaming [LmStudioClient.complete] call. */
+data class CompletionResult(
+    val content: String?,
+    val toolCalls: List<ToolCall>,
+    val finishReason: String?,
+    val promptTokens: Int?,
+    val completionTokens: Int?,
+    /** The raw assistant message, to append back when continuing a tool loop. */
+    val assistantMessage: JSONObject
+)
