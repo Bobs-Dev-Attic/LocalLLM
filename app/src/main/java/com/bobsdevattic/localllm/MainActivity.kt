@@ -527,6 +527,7 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
             Column(Modifier.fillMaxSize()) {
             state.update?.let { info -> UpdateBanner(info, onDismiss = vm::dismissUpdate) }
             if (state.messages.isEmpty()) {
+                val serverReady = state.connectionLabel.startsWith("Connected") && state.model.isNotBlank()
                 Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -537,11 +538,24 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Medium
                         )
-                        Text(
-                            "Connect to LM Studio on your local network to get started.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Button(onClick = { showSettings = true }) { Text("Configure server") }
+                        if (serverReady) {
+                            ConfiguredServerCard(
+                                endpoint = state.endpoint,
+                                model = state.model,
+                                modelCount = state.models.size,
+                                onChange = { showSettings = true }
+                            )
+                            Text(
+                                "Type a message below to start a conversation.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Text(
+                                "Connect to LM Studio on your local network to get started.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Button(onClick = { showSettings = true }) { Text("Configure server") }
+                        }
                     }
                 }
             } else {
@@ -1349,6 +1363,75 @@ private fun ThemeSwatch(theme: ColorTheme, dark: Boolean) {
             size = size,
             cornerRadius = CornerRadius(r, r),
             style = Stroke(width = 1.dp.toPx())
+        )
+    }
+}
+
+/** Landing-page summary of the working, configured server. */
+@Composable
+private fun ConfiguredServerCard(
+    endpoint: String,
+    model: String,
+    modelCount: Int,
+    onChange: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    Icons.Default.CloudDone,
+                    contentDescription = null,
+                    tint = Color(0xFF2E9E4F),
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    "Connected",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF2E9E4F)
+                )
+            }
+            ServerInfoRow("Server", endpoint)
+            ServerInfoRow("Model", model)
+            ServerInfoRow(
+                "Available",
+                "$modelCount model${if (modelCount == 1) "" else "s"}"
+            )
+            TextButton(
+                onClick = onChange,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Change server")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerInfoRow(label: String, value: String) {
+    Column {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
