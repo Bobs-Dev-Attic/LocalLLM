@@ -4,6 +4,13 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.24
+
+- The default API base URL is now `https://192.168.11.225:8443/v1`.
+- When a server is connected and a model is loaded, the empty/landing screen
+  shows the configured server (endpoint, model, model count) with a "Change
+  server" button instead of the "Configure server" prompt.
+
 ## 0.1.23
 
 - HTTPS over Tailscale: the network security config now also trusts
