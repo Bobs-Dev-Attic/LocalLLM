@@ -8,6 +8,9 @@ import com.bobsdevattic.localllm.data.Attachment
 import com.bobsdevattic.localllm.data.ChatMessage
 import com.bobsdevattic.localllm.data.ChatStreamEvent
 import com.bobsdevattic.localllm.data.ConversationStore
+import com.bobsdevattic.localllm.data.GitHubAccount
+import com.bobsdevattic.localllm.data.GitHubAccountStore
+import com.bobsdevattic.localllm.data.GitHubClient
 import com.bobsdevattic.localllm.data.ImageUtil
 import com.bobsdevattic.localllm.data.LmStudioClient
 import com.bobsdevattic.localllm.data.MessageRole
@@ -83,13 +86,19 @@ data class ChatUiState(
     val isCheckingUpdate: Boolean = false,
     val update: UpdateInfo? = null,
     val updateMessage: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val githubAccounts: List<GitHubAccount> = emptyList(),
+    val activeGitHubAccountId: String? = null,
+    val isAddingGitHubAccount: Boolean = false,
+    val githubError: String? = null
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val client = LmStudioClient()
     private val updateChecker = UpdateChecker()
     private val conversationStore = ConversationStore(application)
+    private val githubStore = GitHubAccountStore(application)
+    private val githubClient = GitHubClient()
     private val preferences = application.getSharedPreferences("local_llm_settings", 0)
     private val currentVersion: String = runCatching {
         application.packageManager.getPackageInfo(application.packageName, 0).versionName
@@ -111,7 +120,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 .getOrDefault(ColorTheme.DEFAULT),
             fontSize = runCatching { FontSize.valueOf(preferences.getString("font_size", null) ?: "SMALL") }
                 .getOrDefault(FontSize.SMALL),
-            appVersion = currentVersion
+            appVersion = currentVersion,
+            githubAccounts = githubStore.loadAccounts(),
+            activeGitHubAccountId = githubStore.activeAccountId()
         )
     )
     val state = _state.asStateFlow()
@@ -242,6 +253,67 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(model = value) }
         preferences.edit().putString("model", value).apply()
     }
+
+    // --- GitHub accounts (Phase 0) ---------------------------------------
+
+    /** Validate a personal access token via GET /user, then store the account. */
+    fun addGitHubAccount(label: String, token: String) {
+        val trimmedToken = token.trim()
+        if (trimmedToken.isEmpty()) {
+            _state.update { it.copy(githubError = "Enter a personal access token.") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(isAddingGitHubAccount = true, githubError = null) }
+            runCatching { githubClient.fetchUser(trimmedToken) }
+                .onSuccess { user ->
+                    val id = UUID.randomUUID().toString()
+                    val account = GitHubAccount(
+                        id = id,
+                        label = label.trim().ifBlank { user.login },
+                        login = user.login,
+                        avatarUrl = user.avatarUrl
+                    )
+                    githubStore.putToken(id, trimmedToken)
+                    val updated = state.value.githubAccounts + account
+                    githubStore.saveAccounts(updated)
+                    val active = state.value.activeGitHubAccountId ?: id
+                    githubStore.setActiveAccountId(active)
+                    _state.update {
+                        it.copy(
+                            githubAccounts = updated,
+                            activeGitHubAccountId = active,
+                            isAddingGitHubAccount = false,
+                            githubError = null
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            isAddingGitHubAccount = false,
+                            githubError = error.message ?: "Could not verify the token."
+                        )
+                    }
+                }
+        }
+    }
+
+    fun removeGitHubAccount(id: String) {
+        githubStore.removeToken(id)
+        val updated = state.value.githubAccounts.filterNot { it.id == id }
+        githubStore.saveAccounts(updated)
+        val active = state.value.activeGitHubAccountId?.takeIf { it != id } ?: updated.firstOrNull()?.id
+        githubStore.setActiveAccountId(active)
+        _state.update { it.copy(githubAccounts = updated, activeGitHubAccountId = active) }
+    }
+
+    fun setActiveGitHubAccount(id: String) {
+        githubStore.setActiveAccountId(id)
+        _state.update { it.copy(activeGitHubAccountId = id) }
+    }
+
+    fun clearGitHubError() = _state.update { it.copy(githubError = null) }
 
     fun updateDraft(value: String) = _state.update { it.copy(draft = value) }
 
