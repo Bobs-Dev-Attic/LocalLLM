@@ -88,6 +88,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -828,6 +829,8 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         activeId = state.activeGitHubAccountId,
                         isAdding = state.isAddingGitHubAccount,
                         error = state.githubError,
+                        toolsEnabled = state.githubToolsEnabled,
+                        onToolsEnabledChange = vm::setGitHubToolsEnabled,
                         onAdd = { label, token -> vm.addGitHubAccount(label, token) },
                         onRemove = vm::removeGitHubAccount,
                         onSetActive = vm::setActiveGitHubAccount,
@@ -1539,6 +1542,8 @@ private fun GitHubAccountsSection(
     activeId: String?,
     isAdding: Boolean,
     error: String?,
+    toolsEnabled: Boolean,
+    onToolsEnabledChange: (Boolean) -> Unit,
     onAdd: (String, String) -> Unit,
     onRemove: (String) -> Unit,
     onSetActive: (String) -> Unit,
@@ -1585,6 +1590,20 @@ private fun GitHubAccountsSection(
                     Icon(Icons.Default.Delete, contentDescription = "Remove ${account.label}")
                 }
             }
+        }
+    }
+
+    if (accounts.isNotEmpty()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Text("Let the model call GitHub tools", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "The model can read repos, files and issues with the active account during a reply. Requires a tool-capable model.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = toolsEnabled, onCheckedChange = onToolsEnabledChange)
         }
     }
 

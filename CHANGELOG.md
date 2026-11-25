@@ -4,6 +4,15 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.29
+
+- GitHub tool-calling (connectors, phase 3): a new "Let the model call GitHub
+  tools" switch in Settings. When on (and an account is active), the model can
+  autonomously read repositories, files and issues via OpenAI function calls
+  during a reply — the app runs each call with the active account and feeds the
+  result back, showing the steps as they happen. Requires a tool-capable model;
+  turn it off for plain streaming chat. Image attachments use the normal path.
+
 ## 0.1.28
 
 - Attach GitHub context (connectors, phase 2): a new code icon in the composer
