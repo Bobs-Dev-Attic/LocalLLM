@@ -13,8 +13,11 @@ object GitHubTools {
     private const val MAX_TREE_PATHS = 400
     private const val MAX_SEARCH_RESULTS = 30
 
-    /** The tools array sent to the model (OpenAI function-calling format). */
-    fun specs(): JSONArray {
+    /**
+     * The tools array sent to the model (OpenAI function-calling format).
+     * Write tools (create issue / comment) are included only when [allowWrite].
+     */
+    fun specs(allowWrite: Boolean = false): JSONArray {
         val tools = JSONArray()
 
         tools.put(
@@ -71,6 +74,31 @@ object GitHubTools {
             )
         )
 
+        if (allowWrite) {
+            tools.put(
+                function(
+                    name = "github_create_issue",
+                    description = "Create a new issue in a repository. This writes to GitHub as the active account.",
+                    properties = JSONObject()
+                        .put("repo", strProp("Repository as owner/repo."))
+                        .put("title", strProp("Issue title."))
+                        .put("body", strProp("Issue body in Markdown (optional).")),
+                    required = listOf("repo", "title")
+                )
+            )
+            tools.put(
+                function(
+                    name = "github_create_comment",
+                    description = "Add a comment to an existing issue or pull request. This writes to GitHub as the active account.",
+                    properties = JSONObject()
+                        .put("repo", strProp("Repository as owner/repo."))
+                        .put("number", JSONObject().put("type", "integer").put("description", "Issue or PR number."))
+                        .put("body", strProp("Comment body in Markdown.")),
+                    required = listOf("repo", "number", "body")
+                )
+            )
+        }
+
         return tools
     }
 
@@ -125,6 +153,25 @@ object GitHubTools {
                     if (query.isBlank()) return "Error: 'query' is required."
                     val paths = client.searchCode(token, owner, repo, query)
                     if (paths.isEmpty()) "(no matches)" else paths.take(MAX_SEARCH_RESULTS).joinToString("\n")
+                }
+
+                "github_create_issue" -> {
+                    val (owner, repo) = splitRepo(args.optString("repo"))
+                        ?: return "Error: 'repo' must be owner/repo."
+                    val title = args.optString("title")
+                    if (title.isBlank()) return "Error: 'title' is required."
+                    val ref = client.createIssue(token, owner, repo, title, args.optString("body").ifBlank { null })
+                    "Created issue #${ref.number}: ${ref.url}"
+                }
+
+                "github_create_comment" -> {
+                    val (owner, repo) = splitRepo(args.optString("repo"))
+                        ?: return "Error: 'repo' must be owner/repo."
+                    val number = if (args.has("number")) args.optInt("number") else return "Error: 'number' is required."
+                    val body = args.optString("body")
+                    if (body.isBlank()) return "Error: 'body' is required."
+                    val ref = client.addIssueComment(token, owner, repo, number, body)
+                    "Added comment: ${ref.url}"
                 }
 
                 else -> "Error: unknown tool '$name'."
