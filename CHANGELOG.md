@@ -4,6 +4,16 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.28
+
+- Attach GitHub context (connectors, phase 2): a new code icon in the composer
+  (shown when you have a linked account) opens an "Attach GitHub context"
+  dialog. Pick the account to use for this fetch, choose a repository (loaded
+  from that account, or typed as owner/repo), then pull a file (by path, with an
+  optional ref) or an issue/PR (by number). The content is inserted into your
+  message, capped to protect the model's context. Per-fetch account selection
+  gives you the per-conversation override.
+
 ## 0.1.27
 
 - GitHub accounts (connectors, phase 1 of a larger feature): link one or more

@@ -22,6 +22,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -52,6 +53,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.CloudOff
@@ -108,6 +110,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.LocalTextStyle
@@ -449,6 +452,7 @@ private fun Typography.scaled(scale: Float): Typography {
 private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
     var showSettings by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var showGitHubAttach by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) vm.addAttachment(uri)
@@ -547,7 +551,9 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
-                onRemoveAttachment = vm::removeAttachment
+                onRemoveAttachment = vm::removeAttachment,
+                showGitHub = state.githubAccounts.isNotEmpty(),
+                onAttachGitHub = { showGitHubAttach = true }
             )
         }
     ) { padding ->
@@ -856,6 +862,22 @@ private fun LocalLlmApp(vm: ChatViewModel, state: ChatUiState) {
             onDismiss = { showHistory = false }
         )
     }
+
+    if (showGitHubAttach) {
+        AttachGitHubDialog(
+            accounts = state.githubAccounts,
+            activeId = state.activeGitHubAccountId,
+            repos = state.githubRepos,
+            isLoadingRepos = state.isLoadingGitHubRepos,
+            isFetching = state.isFetchingGitHubContext,
+            error = state.githubError,
+            onLoadRepos = vm::loadGitHubRepos,
+            onAttachFile = { accountId, repo, path, ref -> vm.attachGitHubFile(accountId, repo, path, ref) },
+            onAttachIssue = { accountId, repo, number -> vm.attachGitHubIssue(accountId, repo, number) },
+            onClearError = vm::clearGitHubError,
+            onDismiss = { vm.clearGitHubError(); showGitHubAttach = false }
+        )
+    }
 }
 
 @Composable
@@ -901,7 +923,9 @@ private fun Composer(
     connected: Boolean,
     attachments: List<Attachment>,
     onAttach: () -> Unit,
-    onRemoveAttachment: (String) -> Unit
+    onRemoveAttachment: (String) -> Unit,
+    showGitHub: Boolean,
+    onAttachGitHub: () -> Unit
 ) {
     Surface(shadowElevation = 5.dp) {
         Column(
@@ -942,6 +966,11 @@ private fun Composer(
             Row(verticalAlignment = Alignment.Bottom) {
                 IconButton(onClick = onAttach, enabled = !generating) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Attach image")
+                }
+                if (showGitHub) {
+                    IconButton(onClick = onAttachGitHub, enabled = !generating) {
+                        Icon(Icons.Default.Code, contentDescription = "Attach GitHub context")
+                    }
                 }
                 Box(Modifier.weight(1f)) {
                     if (fieldGlow > 0.01f) {
@@ -1591,6 +1620,165 @@ private fun GitHubAccountsSection(
             Text("Add account")
         }
     }
+}
+
+/** Dialog to fetch a repo file or issue with a chosen account and inject it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AttachGitHubDialog(
+    accounts: List<GitHubAccount>,
+    activeId: String?,
+    repos: List<String>,
+    isLoadingRepos: Boolean,
+    isFetching: Boolean,
+    error: String?,
+    onLoadRepos: (String) -> Unit,
+    onAttachFile: (String, String, String, String?) -> Unit,
+    onAttachIssue: (String, String, Int) -> Unit,
+    onClearError: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val initialAccount = accounts.firstOrNull { it.id == activeId } ?: accounts.first()
+    var account by remember { mutableStateOf(initialAccount) }
+    var repo by remember { mutableStateOf("") }
+    var repoMenu by remember { mutableStateOf(false) }
+    var mode by remember { mutableStateOf("File") }
+    var path by remember { mutableStateOf("") }
+    var ref by remember { mutableStateOf("") }
+    var issueNumber by remember { mutableStateOf("") }
+    val wasFetching = remember { mutableStateOf(false) }
+
+    LaunchedEffect(account.id) { onLoadRepos(account.id) }
+    LaunchedEffect(isFetching, error) {
+        if (wasFetching.value && !isFetching && error == null) onDismiss()
+        wasFetching.value = isFetching
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Attach GitHub context") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (accounts.size > 1) {
+                    ChoiceDropdown(
+                        label = "Account",
+                        options = accounts,
+                        selected = account,
+                        optionLabel = { "@${it.login}" },
+                        onSelect = { account = it }
+                    )
+                } else {
+                    Text(
+                        "Account: @${account.login}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = repoMenu && repos.isNotEmpty(),
+                    onExpandedChange = { if (repos.isNotEmpty()) repoMenu = !repoMenu },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = repo,
+                        onValueChange = { repo = it; if (error != null) onClearError() },
+                        label = { Text("Repository (owner/repo)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        trailingIcon = {
+                            if (isLoadingRepos) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else if (repos.isNotEmpty()) {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = repoMenu)
+                            }
+                        },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth()
+                    )
+                    val filtered = repos.filter { it.contains(repo.trim(), ignoreCase = true) }.take(20)
+                    ExposedDropdownMenu(
+                        expanded = repoMenu && filtered.isNotEmpty(),
+                        onDismissRequest = { repoMenu = false }
+                    ) {
+                        filtered.forEach { r ->
+                            DropdownMenuItem(text = { Text(r) }, onClick = { repo = r; repoMenu = false })
+                        }
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    listOf("File", "Issue").forEach { m ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { mode = m }
+                        ) {
+                            RadioButton(selected = mode == m, onClick = { mode = m })
+                            Text(m)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                }
+
+                if (mode == "File") {
+                    OutlinedTextField(
+                        value = path,
+                        onValueChange = { path = it; if (error != null) onClearError() },
+                        label = { Text("File path (e.g. app/src/Main.kt)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = ref,
+                        onValueChange = { ref = it },
+                        label = { Text("Ref — branch/tag/sha (optional)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = issueNumber,
+                        onValueChange = { v -> issueNumber = v.filter { it.isDigit() }; if (error != null) onClearError() },
+                        label = { Text("Issue or PR number") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                error?.let { ErrorCard(it) }
+            }
+        },
+        confirmButton = {
+            val canAttach = !isFetching && repo.isNotBlank() &&
+                (if (mode == "File") path.isNotBlank() else issueNumber.isNotBlank())
+            Button(
+                onClick = {
+                    if (mode == "File") {
+                        onAttachFile(account.id, repo, path, ref.ifBlank { null })
+                    } else {
+                        issueNumber.toIntOrNull()?.let { onAttachIssue(account.id, repo, it) }
+                    }
+                },
+                enabled = canAttach
+            ) {
+                if (isFetching) {
+                    CircularProgressIndicator(
+                        Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Fetching…")
+                } else {
+                    Text("Attach")
+                }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable
