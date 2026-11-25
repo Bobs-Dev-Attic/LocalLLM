@@ -65,6 +65,34 @@ The debug APK is produced at `app/build/outputs/apk/debug/app-debug.apk`.
 
 Use the host computer's LAN address, not `localhost` or `127.0.0.1` on the Android device.
 
+## Recommended models
+
+Any OpenAI-compatible model served by LM Studio works for chat. For coding —
+and especially for the **GitHub tool-calling** feature (Settings → GitHub
+accounts → "Let the model call GitHub tools") — pick a model whose LM Studio
+card shows the **Tool Use** capability, or tool calls will be ignored.
+
+Sizing is driven by GPU VRAM. Leave headroom beyond the weights file for the
+context window and KV cache; a GGUF that fits exactly will not, in practice,
+with a useful context length.
+
+| VRAM | Suggested coding models (GGUF, via LM Studio) |
+| --- | --- |
+| ~16 GB | Qwen2.5-Coder 14B (Q4_K_M), Qwen3-Coder 30B-A3B (Q4, with some CPU offload) |
+| ~24 GB | Qwen3-Coder 30B-A3B (Q4_K_M), Devstral Small 24B (Q4/Q5), Qwen2.5-Coder 32B (Q4, tight) |
+| ~32 GB | **Qwen3-Coder 30B-A3B (Q4_K_M, ~18.6 GB)** — recommended; Qwen2.5-Coder 32B (Q4_K_M ~20 GB / Q6_K ~27 GB); Devstral Small 24B (Q5/Q6) |
+| 48 GB+ | Qwen2.5-Coder 32B (Q8), larger MoE coders |
+
+Notes:
+
+- **Qwen3-Coder 30B-A3B** is a Mixture-of-Experts model (~3B active of ~30B
+  total), so it is fast while staying strong at code, and advertises Tool Use.
+  It is the default recommendation on a 32 GB card.
+- Dense alternatives like **Qwen2.5-Coder 32B** are also solid; choose the quant
+  (Q4/Q6) that leaves room for your context length.
+- Model names and releases change often — confirm the current build in the LM
+  Studio catalog or on Hugging Face before downloading.
+
 ## Network and privacy notes
 
 - The app sends prompts to the LM Studio endpoint that the user configures. The model host therefore receives conversation content.
