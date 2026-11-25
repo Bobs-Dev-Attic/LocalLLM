@@ -4,6 +4,13 @@ All notable changes to LocalLLM. This file is the online changelog; each release
 also appears on the [Releases page](https://github.com/Bobs-Dev-Attic/LocalLLM/releases)
 with its downloadable APK.
 
+## 0.1.30
+
+- Two more GitHub tools for the model to call: `github_list_tree` (list a
+  repository's files recursively, to discover exact paths) and
+  `github_search_code` (find files by code search). With these, a tool-capable
+  model can locate a file before reading it instead of guessing the path.
+
 ## 0.1.29
 
 - GitHub tool-calling (connectors, phase 3): a new "Let the model call GitHub

@@ -85,6 +85,53 @@ class GitHubClient(
         )
     }
 
+    /** The repository's default branch (e.g. "main"). */
+    suspend fun defaultBranch(token: String, owner: String, repo: String): String = withContext(Dispatchers.IO) {
+        val url = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .build()
+        getJsonObject(url, token).optString("default_branch").ifBlank { "main" }
+    }
+
+    /** Lists the file paths (blobs) in a repository, recursively, at a ref. */
+    suspend fun listTree(
+        token: String,
+        owner: String,
+        repo: String,
+        ref: String?
+    ): List<String> = withContext(Dispatchers.IO) {
+        val branch = ref?.ifBlank { null } ?: defaultBranch(token, owner, repo)
+        val url = "https://api.github.com".toHttpUrl().newBuilder()
+            .addPathSegment("repos").addPathSegment(owner).addPathSegment(repo)
+            .addPathSegment("git").addPathSegment("trees").addPathSegment(branch)
+            .addQueryParameter("recursive", "1")
+            .build()
+        val o = getJsonObject(url, token)
+        val tree = o.optJSONArray("tree") ?: JSONArray()
+        (0 until tree.length()).mapNotNull { i ->
+            val entry = tree.optJSONObject(i) ?: return@mapNotNull null
+            if (entry.optString("type") == "blob") entry.optString("path").takeIf { it.isNotBlank() } else null
+        }
+    }
+
+    /** Searches code within a single repository; returns matching file paths. */
+    suspend fun searchCode(
+        token: String,
+        owner: String,
+        repo: String,
+        query: String
+    ): List<String> = withContext(Dispatchers.IO) {
+        val url = "https://api.github.com/search/code".toHttpUrl().newBuilder()
+            .addQueryParameter("q", "$query repo:$owner/$repo")
+            .addQueryParameter("per_page", "30")
+            .build()
+        val o = getJsonObject(url, token)
+        val items = o.optJSONArray("items") ?: JSONArray()
+        (0 until items.length()).mapNotNull { i ->
+            items.optJSONObject(i)?.optString("path")?.takeIf { it.isNotBlank() }
+        }.distinct()
+    }
+
     // --- helpers ---------------------------------------------------------
 
     private fun authed(url: okhttp3.HttpUrl, token: String): Request =
